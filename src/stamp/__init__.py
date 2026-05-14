@@ -13,6 +13,7 @@ from stamp._types import (
     MedianResult,
     PeakResult,
     SaltykovResult,
+    SimulationResult,
     TwoStepResult,
 )
 
@@ -21,6 +22,7 @@ __all__ = [
     "MeasurementData",
     "SaltykovResult",
     "TwoStepResult",
+    "SimulationResult",
     "MeanResult",
     "MedianResult",
     "PeakResult",

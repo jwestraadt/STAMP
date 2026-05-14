@@ -1,5 +1,7 @@
 """Tests for stamp.plot."""
 
+import warnings
+
 import matplotlib
 import numpy as np
 import pytest
@@ -9,12 +11,14 @@ import matplotlib.pyplot as plt
 
 from stamp._types import MeasurementData
 from stamp.plot import (
+    comparison_plot,
     distribution,
     distribution_profile,
     qq_plot,
     saltykov_plot,
     twostep_plot,
 )
+from stamp.simulate import simulate_section
 from stamp.stats import fit
 from stamp.stereo import saltykov, two_step
 
@@ -198,3 +202,63 @@ def test_qq_plot_saves_file(tmp_path):
 def test_qq_plot_invalid_distribution():
     with pytest.raises(ValueError, match="distribution"):
         qq_plot(_mdata(), distribution="gamma")
+
+
+# ---------------------------------------------------------------------------
+# comparison_plot
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sim_and_sal():
+    sim = simulate_section(
+        mu=45.0, sigma=0.35, n_intersections=100, n_grains=500, seed=0
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        sal = saltykov(sim.apparent_diameters, n_bins=8)
+    return sim, sal
+
+
+def test_comparison_plot_returns_figure(sim_and_sal):
+    sim, sal = sim_and_sal
+    fig = comparison_plot(sim, sal)
+    assert isinstance(fig, plt.Figure)
+
+
+def test_comparison_plot_two_panels(sim_and_sal):
+    sim, sal = sim_and_sal
+    fig = comparison_plot(sim, sal)
+    assert len(fig.axes) == 2
+
+
+def test_comparison_plot_with_saltykov(sim_and_sal):
+    sim, sal = sim_and_sal
+    fig = comparison_plot(sim, sal)
+    assert isinstance(fig, plt.Figure)
+
+
+def test_comparison_plot_with_twostep():
+    import warnings
+
+    sim = simulate_section(
+        mu=45.0, sigma=0.35, n_intersections=100, n_grains=500, seed=0
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ts = two_step(sim.apparent_diameters, bin_range=(5, 10))
+    fig = comparison_plot(sim, ts)
+    assert isinstance(fig, plt.Figure)
+
+
+def test_comparison_plot_saves_file(sim_and_sal, tmp_path):
+    sim, sal = sim_and_sal
+    p = tmp_path / "comparison.png"
+    comparison_plot(sim, sal, output_path=p)
+    assert p.exists()
+
+
+def test_comparison_plot_invalid_corrected_type(sim_and_sal):
+    sim, _ = sim_and_sal
+    with pytest.raises(TypeError, match="corrected"):
+        comparison_plot(sim, "not_a_result")
