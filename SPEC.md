@@ -38,11 +38,12 @@ The stereological methods and statistical approaches follow those implemented in
 
 ```
 src/stamp/
-├── _types.py    # shared dataclasses (MeasurementData, results)
-├── io.py        # data loading
-├── stereo.py    # stereological corrections
-├── stats.py     # descriptive statistics + distribution fitting
-└── plot.py      # visualisation
+├── _types.py     # shared dataclasses (MeasurementData, results)
+├── io.py         # data loading
+├── stereo.py     # stereological corrections
+├── simulate.py   # synthetic grain size simulation and validation
+├── stats.py      # descriptive statistics + distribution fitting
+└── plot.py       # visualisation
 ```
 
 All public dataclasses and result types are re-exported from `stamp` directly so users never
@@ -245,6 +246,76 @@ class TwoStepResult:
 - `RuntimeError` — lognormal fitting fails to converge for all bin counts
 
 **References** — Lopez-Sanchez & Llana-Funez (2016).
+
+---
+
+## `stamp.simulate`
+
+Tools for generating synthetic grain populations and validating stereological corrections against
+a known ground truth.
+
+### `SimulationResult`
+
+```python
+@dataclass
+class SimulationResult:
+    true_diameters: MeasurementData      # all n_grains 3D sphere diameters (ground truth)
+    apparent_diameters: MeasurementData  # n_intersections 2D circle diameters from random sections
+    mu: float                            # input geometric mean (lognormal) or arithmetic mean (normal)
+    sigma: float                         # input log-scale shape (lognormal) or std dev (normal)
+    distribution: str                    # "lognormal" or "normal"
+    n_grains: int                        # pool size
+    n_intersections: int                 # number of 2D section measurements generated
+    unit: str
+    seed: int | None                     # random seed used; None if not supplied
+```
+
+---
+
+### `simulate_section(mu, sigma, n_intersections, n_grains, distribution, seed, unit) → SimulationResult`
+
+Generate a synthetic mono-modal 3D grain population and simulate random 2D cross-sections
+using the Wicksell (1925) corpuscle model.
+
+**Algorithm**
+
+1. Draw `n_grains` sphere diameters D_i from the specified distribution (`"lognormal"` or
+   `"normal"`). Any non-positive samples are redrawn until all D_i > 0.
+2. Construct sampling weights w_i = D_i (larger spheres intersect a random plane with
+   probability proportional to their diameter — the stereological sampling bias).
+3. For each of `n_intersections` measurements:
+   - Sample grain index *i* with probability ∝ w_i.
+   - Draw *t* ~ Uniform(0, D_i / 2) — the perpendicular distance from sphere centre to
+     the cutting plane.
+   - Record apparent circle diameter d = 2 √((D_i / 2)² − t²).
+4. Return `true_diameters` (the full 3D pool, n_grains values) and `apparent_diameters`
+   (the simulated 2D section data, n_intersections values) as `MeasurementData` objects.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mu` | `float` | — | Geometric mean diameter for `"lognormal"`; arithmetic mean for `"normal"`. Same unit as `unit`. |
+| `sigma` | `float` | — | Log-scale shape parameter (σ of ln D) for `"lognormal"`; standard deviation for `"normal"`. |
+| `n_intersections` | `int` | `500` | Number of 2D apparent diameter measurements to generate. |
+| `n_grains` | `int` | `10_000` | Size of the 3D grain pool; must be ≥ `n_intersections`. |
+| `distribution` | `str` | `"lognormal"` | Parent distribution: `"lognormal"` or `"normal"`. |
+| `seed` | `int \| None` | `None` | NumPy random seed for reproducibility. |
+| `unit` | `str` | `"µm"` | Physical unit string attached to both output `MeasurementData` objects. |
+
+**Returns** `SimulationResult`
+
+**Raises**
+
+- `ValueError` — `distribution` is not `"lognormal"` or `"normal"`
+- `ValueError` — `mu ≤ 0`, `sigma ≤ 0`, `n_intersections < 1`, or `n_grains < n_intersections`
+
+**Notes**
+
+- For `"lognormal"`: `mu` is the geometric mean (the scale parameter, exp(μ_log)), and
+  `sigma` is the standard deviation of ln D (the shape parameter). Typical values for
+  geological / metallurgical grains: σ ≈ 0.2–0.5.
+- For `"normal"`: negative or zero samples are automatically redrawn, which slightly biases
+  the effective distribution when `mu / sigma < ~3`; a `warnings.warn` is issued if more
+  than 1 % of draws are rejected.
 
 ---
 
@@ -519,6 +590,103 @@ Quantile-quantile plot comparing the empirical distribution to a theoretical one
 
 ---
 
+### `comparison_plot(sim_result, corrected, output_path, dpi, figsize) → Figure`
+
+Two-panel validation figure comparing the true 3D grain size distribution to a
+stereologically corrected estimate.
+
+- **Left panel** — Histogram + KDE of `sim_result.apparent_diameters` (the 2D section
+  data), annotated with the apparent geometric mean as a vertical dashed line.
+- **Right panel** — KDE of `sim_result.true_diameters` (filled, labelled "True 3D")
+  overlaid with the Saltykov frequency bars or two-step lognormal curve (labelled
+  "Corrected"). Annotates both geometric means and the percentage recovery error
+  `|corrected − true| / true × 100 %`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `sim_result` | `SimulationResult` | — | Output of `simulate.simulate_section()` |
+| `corrected` | `SaltykovResult \| TwoStepResult` | — | Output of `stereo.saltykov()` or `stereo.two_step()` |
+| `output_path` | `str \| Path \| None` | `None` | Save path |
+| `dpi` | `int` | `300` | Output resolution |
+| `figsize` | `tuple[float, float]` | `(12, 4.8)` | Figure size in inches |
+
+**Raises** `TypeError` — if `corrected` is not a `SaltykovResult` or `TwoStepResult`.
+
+---
+
+## Working example — Saltykov correction validation
+
+The following script uses `stamp.simulate` to verify that the Saltykov and two-step
+corrections faithfully recover a known lognormal 3D grain size distribution from
+synthetic 2D cross-section data.
+
+```python
+import stamp
+from stamp.simulate import simulate_section
+from stamp import stereo, plot, stats
+
+# ── 1. Simulate ───────────────────────────────────────────────────────────────
+# True 3D distribution: lognormal, geometric mean = 45 µm, log-shape σ = 0.35
+sim = simulate_section(
+    mu=45.0,
+    sigma=0.35,
+    n_intersections=500,
+    n_grains=10_000,
+    distribution="lognormal",
+    seed=42,
+    unit="µm",
+)
+
+# ── 2. Apply stereological corrections ────────────────────────────────────────
+sal = stereo.saltykov(sim.apparent_diameters, n_bins=12)
+ts  = stereo.two_step(sim.apparent_diameters, bin_range=(10, 20))
+
+# ── 3. Descriptive statistics ─────────────────────────────────────────────────
+print("=== True 3D distribution ===")
+desc_3d = stats.describe(sim.true_diameters)
+print(f"  geometric mean : {desc_3d.gmean.mean:.2f} µm")
+print(f"  median         : {desc_3d.median.median:.2f} µm")
+print(f"  KDE mode       : {desc_3d.peak.peak:.2f} µm")
+
+print("\n=== 2D apparent distribution (raw, uncorrected) ===")
+desc_2d = stats.describe(sim.apparent_diameters)
+print(f"  geometric mean : {desc_2d.gmean.mean:.2f} µm")
+print(f"  median         : {desc_2d.median.median:.2f} µm")
+
+print("\n=== Two-step lognormal fit (Saltykov-corrected) ===")
+print(f"  geometric mean : {ts.geometric_mean:.2f} µm  (true: {sim.mu:.1f} µm)")
+print(f"  log-shape σ    : {np.log(ts.shape):.3f}       (true: {sim.sigma:.3f})")  # ts.shape is exp(σ)
+recovery_err = abs(ts.geometric_mean - sim.mu) / sim.mu * 100
+print(f"  recovery error : {recovery_err:.1f} %")
+
+# ── 4. Plots ──────────────────────────────────────────────────────────────────
+# Saltykov validation: 2D apparent | true 3D vs corrected
+fig1 = plot.comparison_plot(sim, sal, output_path="saltykov_validation.png")
+
+# Two-step lognormal curve with ±3σ uncertainty band
+fig2 = plot.twostep_plot(ts, output_path="twostep_fit.png")
+
+# Q-Q plot of apparent 2D data against lognormal
+fig3 = plot.qq_plot(
+    sim.apparent_diameters,
+    distribution="lognormal",
+    output_path="qq_apparent.png",
+)
+```
+
+**Expected output** (approximate, seed = 42, n_intersections = 500):
+
+| Quantity | True 3D | 2D apparent | Two-step corrected |
+|----------|---------|-------------|-------------------|
+| Geometric mean (µm) | ~45.0 | ~37–40 | ~43–47 |
+| Log-shape σ | 0.35 | — | ~0.30–0.40 |
+
+The 2D apparent geometric mean is systematically smaller than the true 3D mean — the
+Wicksell bias. The Saltykov and two-step corrections recover the true mean to within
+~5–10 % for n = 500 intersections; recovery improves with larger sample sizes.
+
+---
+
 ## Error-handling policy
 
 | Situation | Behaviour |
@@ -527,6 +695,8 @@ Quantile-quantile plot comparing the empirical distribution to a theoretical one
 | Data quality (NaN, ±inf, negatives) | `warnings.warn` stating count removed; continue with cleaned data |
 | Saltykov negative unfolded frequencies | `warnings.warn`; clip to zero and renormalise |
 | MLE / optimisation failure | `RuntimeError` |
+| Simulate: `"normal"` distribution with >1 % rejected draws | `warnings.warn` stating rejection rate |
+| `comparison_plot` given unsupported `corrected` type | `TypeError` with descriptive message |
 
 ---
 

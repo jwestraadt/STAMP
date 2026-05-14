@@ -244,6 +244,43 @@ class FitResult:
 
 
 @dataclass
+class SimulationResult:
+    """Output of :func:`stamp.simulate.simulate_section`.
+
+    Parameters
+    ----------
+    true_diameters : MeasurementData
+        Full pool of ``n_grains`` 3-D sphere diameters (ground truth).
+    apparent_diameters : MeasurementData
+        ``n_intersections`` 2-D circle diameters from random cross-sections.
+    mu : float
+        Input geometric mean (lognormal) or arithmetic mean (normal).
+    sigma : float
+        Input log-scale shape σ of ln D (lognormal) or standard deviation (normal).
+    distribution : str
+        ``"lognormal"`` or ``"normal"``.
+    n_grains : int
+        Size of the 3-D grain pool.
+    n_intersections : int
+        Number of 2-D section measurements generated.
+    unit : str
+        Physical unit string.
+    seed : int or None
+        Random seed used; ``None`` if not supplied.
+    """
+
+    true_diameters: MeasurementData
+    apparent_diameters: MeasurementData
+    mu: float
+    sigma: float
+    distribution: str
+    n_grains: int
+    n_intersections: int
+    unit: str
+    seed: int | None
+
+
+@dataclass
 class DescribeResult:
     """Output of :func:`stamp.stats.describe`.
 
