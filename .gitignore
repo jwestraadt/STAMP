@@ -47,6 +47,10 @@ docs/autoapi/
 .ipynb_checkpoints/
 *.ipynb~
 
+# Scratch / test output files (not part of the dataset)
+notebooks/*.csv
+*.png
+
 # OS
 .DS_Store
 Thumbs.db
