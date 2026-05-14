@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `docs/api.rst` — replaced removed `.. autoapi-index::` directive (incompatible with sphinx-autoapi v3) with a prose reference to the auto-generated `autoapi/index`
+
+### Changed
+- `README.md` — rewrote with full project description, feature list, and working Quick Start example using the real API
+- `docs/quickstart.rst` — replaced placeholder with a complete worked example (load → ECD → stats → Saltykov → two-step → plots)
+- `pyproject.toml` — updated package description to "Stereological Tools for Analysis of Microstructural Parameters"
+
 ### Added
 - Initial project scaffold
 - `stamp._types` — shared dataclasses (`MeasurementData`, `SaltykovResult`, `TwoStepResult`, `MeanResult`, `MedianResult`, `PeakResult`, `FitResult`, `DescribeResult`) re-exported from `stamp`
