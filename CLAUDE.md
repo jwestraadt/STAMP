@@ -131,13 +131,18 @@ File: `CHANGELOG.md` — follows [Keep a Changelog](https://keepachangelog.com/e
 - All changes go under `[Unreleased]` until a release is cut.
 - Categories: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 - One bullet per logical change. Reference the relevant function/module.
+- **Write for users, not developers.** Each entry must describe what the user can now *do*, not how it is implemented. Omit: internal dataclass names, test counts, coverage percentages, dev-only dependency additions, docstring/RST fixes, and file renames that have no user-visible effect.
+- Group related entries under bold sub-headings (e.g. **Stereology**, **Statistics**, **Plots**) when a section has more than three bullets.
 
 Example entry:
 ```markdown
 ## [Unreleased]
 
 ### Added
-- `stamp.core.compute()` — computes the mean along a configurable axis
+
+**Stereology**
+- Saltykov/Wicksell matrix unfolding — recovers the 3-D sphere-diameter distribution
+  from 2-D section measurements (`stamp.stereo.saltykov()`)
 ```
 
 ---
