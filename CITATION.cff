@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+type: software
+title: STAMP
+abstract: >
+  STAMP is a scientific Python package for ...
+authors:
+  - family-names: Westraadt
+    given-names: Johan
+    email: johan.westraadt@gmail.com
+    orcid: ""
+version: 0.1.0
+date-released: "2026-05-14"
+repository-code: https://github.com/jwestraadt/STAMP
+url: https://github.com/jwestraadt/STAMP
+license: MIT
+keywords:
+  - science
+  - research
+  - python

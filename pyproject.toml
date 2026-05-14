@@ -1,0 +1,77 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "stamp"
+dynamic = ["version"]
+description = "A scientific Python package for ..."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Johan Westraadt", email = "johan.westraadt@gmail.com" }]
+requires-python = ">=3.9"
+keywords = ["science", "research"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/jwestraadt/STAMP"
+Documentation = "https://jwestraadt.github.io/STAMP"
+Repository = "https://github.com/jwestraadt/STAMP"
+"Bug Tracker" = "https://github.com/jwestraadt/STAMP/issues"
+Changelog = "https://github.com/jwestraadt/STAMP/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.sdist]
+include = ["src/", "tests/", "CHANGELOG.md", "CONTRIBUTING.md"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/stamp"]
+
+[dependency-groups]
+dev = [
+  "pytest>=7.4",
+  "pytest-cov>=4.1",
+  "ruff>=0.4",
+  "sphinx>=7.0",
+  "furo>=2024.1",
+  "sphinx-autoapi>=3.0",
+  "myst-parser>=2.0",
+  "ipykernel>=6.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=stamp --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["stamp"]
+
+[tool.coverage.report]
+fail_under = 60
+show_missing = true
