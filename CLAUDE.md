@@ -117,6 +117,7 @@ uv run pytest --cov=stamp --cov-report=html   # HTML coverage report
 - Docs are built with Sphinx. Source in `docs/`, output in `docs/_build/` (gitignored).
 - New public modules must be importable by sphinx-autoapi automatically — no manual `.rst` edits needed.
 - For narrative docs (tutorials, how-tos) add `.md` files in `docs/` and reference them in `docs/index.rst`.
+- **Every new notebook must be documented in `docs/examples.md`** — add a section with a short description and representative code snippets. Then verify the docs build cleanly.
 
 ```bash
 uv run sphinx-build docs docs/_build/html -W   # -W turns warnings into errors

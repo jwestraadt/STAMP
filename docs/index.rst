@@ -7,6 +7,7 @@ STAMP Documentation
 
    installation
    quickstart
+   examples
    api
 
 .. toctree::
