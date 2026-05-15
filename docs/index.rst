@@ -6,7 +6,6 @@ STAMP Documentation
    :caption: Contents:
 
    installation
-   quickstart
    examples
    api
 

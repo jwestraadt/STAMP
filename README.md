@@ -32,41 +32,6 @@ Or with [uv](https://docs.astral.sh/uv/):
 uv add stamp
 ```
 
-## Quick Start
-
-```python
-import numpy as np
-from stamp.io import load
-from stamp.stereo import ecd_from_area, saltykov, two_step
-from stamp.stats import describe
-from stamp.plot import distribution, saltykov_plot, twostep_plot
-
-# Load grain areas from a CSV file
-data = load("grains.csv", column="Area", unit="µm²", label="Grain Area")
-
-# Convert 2-D projected areas to equivalent circle diameters
-ecds = ecd_from_area(data)
-
-# Descriptive statistics with 95 % confidence intervals
-result = describe(ecds)
-print(f"Arithmetic mean : {result.amean.mean:.2f} µm  "
-      f"[{result.amean.ci_low:.2f}, {result.amean.ci_high:.2f}]")
-print(f"Geometric mean  : {result.gmean.mean:.2f} µm")
-print(f"Median          : {result.median.median:.2f} µm")
-
-# Saltykov/Wicksell stereological correction (2-D → 3-D)
-sal = saltykov(ecds, n_bins=10)
-
-# Two-step lognormal fit
-ts = two_step(ecds, bin_range=(10, 20))
-print(f"3-D geometric mean: {ts.geometric_mean:.2f} µm")
-
-# Publication-ready plots (saved to PNG, 300 dpi)
-distribution(ecds, output_path="distribution.png")
-saltykov_plot(sal,  output_path="saltykov.png")
-twostep_plot(ts,    output_path="twostep.png")
-```
-
 ## Documentation
 
 Full documentation is available at [jwestraadt.github.io/STAMP](https://jwestraadt.github.io/STAMP).

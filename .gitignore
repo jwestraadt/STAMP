@@ -49,7 +49,7 @@ docs/autoapi/
 
 # Scratch / test output files (not part of the dataset)
 notebooks/*.csv
-*.png
+/*.png
 
 # OS
 .DS_Store

@@ -120,7 +120,7 @@ uv run pytest --cov=stamp --cov-report=html   # HTML coverage report
 - **Every new notebook must be documented in `docs/examples.md`** — add a section with a short description and representative code snippets. Then verify the docs build cleanly.
 
 ```bash
-uv run sphinx-build docs docs/_build/html -W   # -W turns warnings into errors
+uv run sphinx-build docs docs/_build/html -W -E   # -W = warnings as errors, -E = always rebuild from scratch
 ```
 
 ---
