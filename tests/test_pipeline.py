@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +19,7 @@ from stamp.pipeline import (
     export_csv,
     run,
     run_batch,
+    run_mipar,
 )
 
 # ---------------------------------------------------------------------------
@@ -329,3 +331,198 @@ def test_run_batch_integer_columns(tmp_path):
     result = run_batch({"S": path}, measurement_column=1, unit="µm", label_column=0)
     assert len(result.summary) == 1
     assert result.summary["fov"].iloc[0] == "fov01"
+
+
+# ---------------------------------------------------------------------------
+# run_mipar() fixtures and helpers
+# ---------------------------------------------------------------------------
+
+
+def _write_mipar_csv(
+    path: Path,
+    phases: list[str],
+    fovs: list[str],
+    n_per_group: int = 20,
+) -> Path:
+    """Write a MIPAR-style CSV with given phases and FOV image names."""
+    rows = []
+    for fov in fovs:
+        for phase in phases:
+            vals = RNG.lognormal(mean=np.log(5), sigma=0.3, size=n_per_group)
+            for feat_idx, v in enumerate(vals, start=1):
+                rows.append(
+                    {
+                        "Image": fov,
+                        "Layer": phase,
+                        "Feature": feat_idx,
+                        "ECD (um)": v,
+                        "Area (um^2)": v**2,
+                    }
+                )
+    pd.DataFrame(rows).to_csv(path, index=False)
+    return path
+
+
+@pytest.fixture()
+def mipar_two_state(tmp_path):
+    """Two MIPAR CSV files, two phases each, two FOVs each."""
+    t3 = _write_mipar_csv(
+        tmp_path / "T3.csv",
+        phases=["M23C6", "Laves"],
+        fovs=["fov1.tif", "fov2.tif"],
+    )
+    t4 = _write_mipar_csv(
+        tmp_path / "T4.csv",
+        phases=["M23C6", "Laves"],
+        fovs=["fov1.tif", "fov2.tif"],
+    )
+    return {"T3": t3, "T4": t4}
+
+
+# ---------------------------------------------------------------------------
+# run_mipar — happy path
+# ---------------------------------------------------------------------------
+
+
+def test_run_mipar_returns_pipeline_result(mipar_two_state):
+    result = run_mipar(
+        mipar_two_state, measurement="ECD (um)", unit="µm", phase="M23C6"
+    )
+    assert isinstance(result, PipelineResult)
+
+
+def test_run_mipar_state_count(mipar_two_state):
+    result = run_mipar(
+        mipar_two_state, measurement="ECD (um)", unit="µm", phase="M23C6"
+    )
+    assert len(result.states) == 2
+
+
+def test_run_mipar_fov_count(mipar_two_state):
+    result = run_mipar(
+        mipar_two_state, measurement="ECD (um)", unit="µm", phase="M23C6"
+    )
+    for sr in result.states:
+        assert len(sr.fields) == 2
+
+
+def test_run_mipar_summary_shape(mipar_two_state):
+    result = run_mipar(
+        mipar_two_state, measurement="ECD (um)", unit="µm", phase="M23C6"
+    )
+    assert len(result.summary) == 4  # 2 states × 2 FOVs
+
+
+def test_run_mipar_summary_columns(mipar_two_state):
+    result = run_mipar(
+        mipar_two_state, measurement="ECD (um)", unit="µm", phase="M23C6"
+    )
+    expected = {"state", "fov", "n", "unit", "amean", "gmean", "median"}
+    assert expected.issubset(result.summary.columns)
+
+
+def test_run_mipar_fov_id_is_stem(mipar_two_state):
+    result = run_mipar(
+        mipar_two_state, measurement="ECD (um)", unit="µm", phase="M23C6"
+    )
+    fov_vals = result.summary["fov"].tolist()
+    assert all(not v.endswith(".tif") for v in fov_vals)
+
+
+def test_run_mipar_n_counts_only_phase_rows(tmp_path):
+    """n per FOV should equal n_per_group (only the filtered phase rows)."""
+    path = _write_mipar_csv(
+        tmp_path / "single.csv",
+        phases=["Alpha", "Beta"],
+        fovs=["img.tif"],
+        n_per_group=15,
+    )
+    result = run_mipar({"S": path}, measurement="ECD (um)", unit="µm", phase="Alpha")
+    assert result.summary["n"].iloc[0] == 15
+
+
+def test_run_mipar_no_phase_filter_combines_all(tmp_path):
+    """With phase=None, all phase rows are combined into each FOV group."""
+    path = _write_mipar_csv(
+        tmp_path / "single.csv",
+        phases=["Alpha", "Beta"],
+        fovs=["img.tif"],
+        n_per_group=10,
+    )
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        result = run_mipar({"S": path}, measurement="ECD (um)", unit="µm")
+    assert result.summary["n"].iloc[0] == 20  # both phases combined
+
+
+def test_run_mipar_no_phase_warns_multiple(tmp_path):
+    path = _write_mipar_csv(
+        tmp_path / "m.csv", phases=["A", "B"], fovs=["f.tif"], n_per_group=5
+    )
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        run_mipar({"S": path}, measurement="ECD (um)", unit="µm")
+    user_warns = [x for x in w if issubclass(x.category, UserWarning)]
+    assert any("no phase filter" in str(x.message) for x in user_warns)
+
+
+def test_run_mipar_label_defaults_to_measurement(mipar_two_state):
+    result = run_mipar(
+        mipar_two_state, measurement="ECD (um)", unit="µm", phase="M23C6"
+    )
+    assert result.states[0].fields[0].data.attrs["label"] == "ECD (um)"
+
+
+def test_run_mipar_custom_label(mipar_two_state):
+    result = run_mipar(
+        mipar_two_state, measurement="ECD (um)", unit="µm", phase="M23C6", label="ECD"
+    )
+    assert result.states[0].fields[0].data.attrs["label"] == "ECD"
+
+
+def test_run_mipar_output_dir(mipar_two_state, tmp_path):
+    out = tmp_path / "out"
+    run_mipar(
+        mipar_two_state,
+        measurement="ECD (um)",
+        unit="µm",
+        phase="M23C6",
+        output_dir=out,
+    )
+    assert (out / "pipeline_summary.csv").exists()
+    assert (out / "boxplot_amean.png").exists()
+
+
+@pytest.mark.parametrize("metric", ["amean", "gmean", "median"])
+def test_run_mipar_metrics(mipar_two_state, metric):
+    result = run_mipar(
+        mipar_two_state, measurement="ECD (um)", unit="µm", phase="M23C6", metric=metric
+    )
+    assert metric in result.summary.columns
+
+
+# ---------------------------------------------------------------------------
+# run_mipar — error cases
+# ---------------------------------------------------------------------------
+
+
+def test_run_mipar_invalid_metric(mipar_two_state):
+    with pytest.raises(ValueError, match="metric must be one of"):
+        run_mipar(mipar_two_state, measurement="ECD (um)", unit="µm", metric="variance")
+
+
+def test_run_mipar_missing_measurement_col(mipar_two_state):
+    with pytest.raises(ValueError, match="Measurement column"):
+        run_mipar(mipar_two_state, measurement="nonexistent", unit="µm")
+
+
+def test_run_mipar_phase_not_found(mipar_two_state):
+    with pytest.raises(ValueError, match="Phase.*not found"):
+        run_mipar(
+            mipar_two_state, measurement="ECD (um)", unit="µm", phase="NoSuchPhase"
+        )
+
+
+def test_run_mipar_file_not_found(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        run_mipar({"S": tmp_path / "missing.csv"}, measurement="ECD (um)", unit="µm")

@@ -13,6 +13,7 @@ from stamp._types import (
     MeasurementData,
     MedianResult,
     PeakResult,
+    _coerce_to_measurement,
 )
 
 _VALID_AMEAN_METHODS = ("ASTM", "GCI", "mCox")
@@ -30,8 +31,9 @@ def amean(
 
     Parameters
     ----------
-    data : MeasurementData
-        Input measurements.
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        Input measurements.  A single-column :class:`~pandas.DataFrame`
+        returned by :func:`stamp.io.load` is accepted directly.
     ci : float, optional
         Confidence level in (0, 1).  Default 0.95.
     method : str, optional
@@ -49,6 +51,7 @@ def amean(
     ValueError
         If *method* is unknown or *ci* is outside (0, 1).
     """
+    data = _coerce_to_measurement(data)
     _validate_ci(ci)
     if method not in _VALID_AMEAN_METHODS:
         raise ValueError(
@@ -88,8 +91,10 @@ def gmean(
 
     Parameters
     ----------
-    data : MeasurementData
-        Input measurements (all values must be positive).
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        Input measurements (all values must be positive).  A single-column
+        :class:`~pandas.DataFrame` returned by :func:`stamp.io.load` is
+        accepted directly.
     ci : float, optional
         Confidence level in (0, 1).  Default 0.95.
     method : str, optional
@@ -108,6 +113,7 @@ def gmean(
     ValueError
         If *method* is unknown or *ci* is outside (0, 1).
     """
+    data = _coerce_to_measurement(data)
     _validate_ci(ci)
     if method not in _VALID_GMEAN_METHODS:
         raise ValueError(
@@ -145,8 +151,9 @@ def median(
 
     Parameters
     ----------
-    data : MeasurementData
-        Input measurements.
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        Input measurements.  A single-column :class:`~pandas.DataFrame`
+        returned by :func:`stamp.io.load` is accepted directly.
     ci : float, optional
         Confidence level in (0, 1).  Default 0.95.
 
@@ -159,6 +166,7 @@ def median(
     CI uses the Hollander & Wolfe (1999) rule-of-thumb:
     index = (n/2) ± (z × √n) / 2.
     """
+    data = _coerce_to_measurement(data)
     _validate_ci(ci)
     v = np.sort(data.values)
     n = len(v)
@@ -192,8 +200,9 @@ def freq_peak(
 
     Parameters
     ----------
-    data : MeasurementData
-        Input measurements.
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        Input measurements.  A single-column :class:`~pandas.DataFrame`
+        returned by :func:`stamp.io.load` is accepted directly.
     bandwidth : str or float, optional
         KDE bandwidth: ``"silverman"``, ``"scott"``, or a positive float.
         Default ``"silverman"``.
@@ -207,6 +216,7 @@ def freq_peak(
     ValueError
         If *bandwidth* is an unknown string or a non-positive float.
     """
+    data = _coerce_to_measurement(data)
     if isinstance(bandwidth, str):
         if bandwidth not in ("silverman", "scott"):
             raise ValueError(
@@ -246,8 +256,9 @@ def fit(
 
     Parameters
     ----------
-    data : MeasurementData
-        Input measurements.
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        Input measurements.  A single-column :class:`~pandas.DataFrame`
+        returned by :func:`stamp.io.load` is accepted directly.
     distribution : str, optional
         ``"normal"`` or ``"lognormal"``.  Default ``"lognormal"``.
 
@@ -262,6 +273,7 @@ def fit(
     RuntimeError
         If MLE optimisation fails to converge.
     """
+    data = _coerce_to_measurement(data)
     if distribution not in _VALID_DISTRIBUTIONS:
         raise ValueError(
             f"distribution must be one of {_VALID_DISTRIBUTIONS}, got {distribution!r}."
@@ -308,8 +320,9 @@ def describe(
 
     Parameters
     ----------
-    data : MeasurementData
-        Input measurements.
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        Input measurements.  A single-column :class:`~pandas.DataFrame`
+        returned by :func:`stamp.io.load` is accepted directly.
     ci : float, optional
         Confidence level passed to all sub-functions.  Default 0.95.
 
@@ -317,6 +330,7 @@ def describe(
     -------
     DescribeResult
     """
+    data = _coerce_to_measurement(data)
     percentile_keys = [5, 10, 25, 75, 90, 95]
     pcts = {k: float(np.percentile(data.values, k)) for k in percentile_keys}
 

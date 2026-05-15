@@ -16,6 +16,7 @@ from stamp._types import (
     SaltykovResult,
     SimulationResult,
     TwoStepResult,
+    _coerce_to_measurement,
 )
 
 # ---------------------------------------------------------------------------
@@ -66,8 +67,9 @@ def distribution(
 
     Parameters
     ----------
-    data : MeasurementData
-        Input measurements.
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        Input measurements.  A single-column :class:`~pandas.DataFrame`
+        returned by :func:`stamp.io.load` is accepted directly.
     plot : tuple of str, optional
         Elements to draw; subset of ``{"hist", "kde"}``.
     avg : tuple of str, optional
@@ -103,6 +105,7 @@ def distribution(
     if invalid_avg:
         raise ValueError(f"Unknown avg element(s): {invalid_avg}. Valid: {_VALID_AVG}")
 
+    data = _coerce_to_measurement(data)
     v = data.values
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -287,8 +290,9 @@ def distribution_profile(
 
     Parameters
     ----------
-    data : MeasurementData
-        Input measurements.
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        Input measurements.  A single-column :class:`~pandas.DataFrame`
+        returned by :func:`stamp.io.load` is accepted directly.
     kind : str, optional
         ``"pdf"`` (kernel density) or ``"cdf"`` (empirical).  Default ``"pdf"``.
     fit : FitResult, optional
@@ -312,6 +316,7 @@ def distribution_profile(
     if kind not in ("pdf", "cdf"):
         raise ValueError(f"kind must be 'pdf' or 'cdf', got {kind!r}.")
 
+    data = _coerce_to_measurement(data)
     v = data.values
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -376,8 +381,9 @@ def qq_plot(
 
     Parameters
     ----------
-    data : MeasurementData
-        Input measurements.
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        Input measurements.  A single-column :class:`~pandas.DataFrame`
+        returned by :func:`stamp.io.load` is accepted directly.
     distribution : str, optional
         ``"normal"`` or ``"lognormal"``.  Default ``"lognormal"``.
     percent : float, optional
@@ -403,6 +409,7 @@ def qq_plot(
             f"distribution must be one of {_VALID_DIST}, got {distribution!r}."
         )
 
+    data = _coerce_to_measurement(data)
     v = data.values
     lo_cut = np.percentile(v, percent)
     hi_cut = np.percentile(v, 100 - percent)

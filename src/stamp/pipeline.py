@@ -15,7 +15,7 @@ import pandas as pd
 from matplotlib.figure import Figure
 
 from stamp._types import DescribeResult, MeasurementData
-from stamp.io import _ALL_EXTENSIONS, load
+from stamp.io import _ALL_EXTENSIONS, load, load_mipar_features
 from stamp.plot import _C_TEXT, _apply_style
 from stamp.stats import describe
 
@@ -48,8 +48,8 @@ class FieldResult:
         Name of the parent material state.
     path : Path
         Source file path.
-    data : MeasurementData
-        Loaded measurement data.
+    data : pd.Series
+        Loaded measurement data with ``attrs["unit"]`` and ``attrs["label"]`` set.
     stats : DescribeResult
         Full descriptive statistics for this field.
     fov_id : str, optional
@@ -60,7 +60,7 @@ class FieldResult:
 
     state: str
     path: Path
-    data: MeasurementData
+    data: pd.Series
     stats: DescribeResult
     fov_id: str | None = None
 
@@ -189,9 +189,14 @@ def run(
 
         sr = StateResult(name=state_name)
         for fp in files:
-            data = load(fp, column=column, unit=unit, label=label, **load_kwargs)
-            stats = describe(data, ci=ci)
-            fr = FieldResult(state=state_name, path=fp, data=data, stats=stats)
+            df_out = load(fp, column=column, unit=unit, label=label, **load_kwargs)
+            series = _make_series(
+                df_out.iloc[:, 0].to_numpy(dtype=np.float64),
+                unit=df_out.attrs["unit"],
+                label=df_out.attrs["label"],
+            )
+            stats = describe(_series_to_measurement(series), ci=ci)
+            fr = FieldResult(state=state_name, path=fp, data=series, stats=stats)
             sr.fields.append(fr)
             rows.append(_field_to_row(fr))
         state_results.append(sr)
@@ -288,8 +293,12 @@ def boxplot(
     ax.set_xticks(positions)
     ax.set_xticklabels([sr.name for sr in result.states], rotation=20, ha="right")
 
-    unit = result.states[0].fields[0].data.unit if result.states else ""
-    feat_label = result.states[0].fields[0].data.label if result.states else ""
+    unit = (
+        result.states[0].fields[0].data.attrs.get("unit", "") if result.states else ""
+    )
+    feat_label = (
+        result.states[0].fields[0].data.attrs.get("label", "") if result.states else ""
+    )
     ax.set_ylabel(f"{_METRIC_LABELS[metric]} — {feat_label} ({unit})", color=_C_TEXT)
     ax.set_title(
         f"{_METRIC_LABELS[metric]} per field-of-view by material state",
@@ -453,8 +462,8 @@ def run_batch(
             values = meas_series[mask].to_numpy(dtype=np.float64)
             if len(values) == 0:
                 continue
-            data = MeasurementData(values=values, unit=unit, label=feat_label)
-            stats = describe(data, ci=ci)
+            data = _make_series(values, unit=unit, label=feat_label)
+            stats = describe(_series_to_measurement(data), ci=ci)
             fr = FieldResult(
                 state=state_name,
                 path=csv_path,
@@ -464,6 +473,187 @@ def run_batch(
             )
             sr.fields.append(fr)
             rows.append(_field_to_row(fr))
+        state_results.append(sr)
+
+    summary = pd.DataFrame(rows)
+    result = PipelineResult(states=state_results, summary=summary)
+
+    if output_dir is not None:
+        out = Path(output_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        export_csv(result, out / "pipeline_summary.csv")
+        fig = boxplot(result, metric=metric, dpi=dpi)
+        fig.savefig(out / f"boxplot_{metric}.png", dpi=dpi, bbox_inches="tight")
+        plt.close(fig)
+
+    return result
+
+
+def run_mipar(
+    files: dict[str, Path | str],
+    measurement: str,
+    unit: str,
+    *,
+    phase: str | None = None,
+    image_col: str = "Image",
+    phase_col: str = "Layer",
+    label: str | None = None,
+    ci: float = 0.95,
+    output_dir: Path | str | None = None,
+    metric: str = "amean",
+    dpi: int = 300,
+) -> PipelineResult:
+    """Run the pipeline on MIPAR feature-measurement CSV files.
+
+    MIPAR exports one CSV per material state containing measurements for all
+    fields-of-view (images) and all precipitate phases (layers) together.
+    This function reads each file, optionally filters to one phase, groups
+    rows by image/FOV, and returns the same :class:`PipelineResult` as
+    :func:`run` and :func:`run_batch`.
+
+    Parameters
+    ----------
+    files : dict
+        Mapping of state name → path to the MIPAR CSV (or Excel) file for
+        that state.
+    measurement : str
+        Measurement column to analyse, e.g. ``"Equivalent Diameter (um)"``.
+    unit : str
+        Physical unit string, e.g. ``"µm"``.
+    phase : str, optional
+        If given, only rows where *phase_col* equals *phase* are used.
+        When omitted all phases are combined; a :func:`warnings.warn` is
+        issued if more than one phase is present.
+    image_col : str, optional
+        Column identifying the field-of-view image.  Default ``"Image"``.
+    phase_col : str, optional
+        Column identifying the precipitate phase.  Default ``"Layer"``.
+    label : str, optional
+        Display label for the measured feature.  Defaults to *measurement*.
+    ci : float, optional
+        Confidence level for all statistics.  Default 0.95.
+    output_dir : Path or str, optional
+        If given, writes ``pipeline_summary.csv`` and
+        ``boxplot_<metric>.png`` to this directory.
+    metric : str, optional
+        Statistic for the auto-saved box plot: ``"amean"``, ``"gmean"``, or
+        ``"median"``.  Default ``"amean"``.
+    dpi : int, optional
+        Figure resolution when *output_dir* is set.  Default 300.
+
+    Returns
+    -------
+    PipelineResult
+        Same structure as :func:`run`.  The ``fov`` column in
+        :attr:`PipelineResult.summary` holds the image filename stem
+        (extension stripped).
+
+    Raises
+    ------
+    ValueError
+        If *metric* is unknown, *measurement* is missing from the file,
+        *phase* is not present in *phase_col*, or a state has no valid data.
+    FileNotFoundError
+        If any supplied path does not exist.
+
+    Examples
+    --------
+    >>> # Compare M23C6 ECD across two heat-treatment states
+    >>> result = run_mipar(
+    ...     files={
+    ...         "T3": "T3_FeatureMeas.csv",
+    ...         "T4": "T4_FeatureMeas.csv",
+    ...     },
+    ...     measurement="Equivalent Diameter (um)",
+    ...     unit="µm",
+    ...     phase="M23C6",
+    ... )
+    >>> result.summary.head()
+
+    >>> # Compare phases within one state (one file, three state-name keys)
+    >>> result = run_mipar(
+    ...     files={
+    ...         "M23C6":    "T3_FeatureMeas.csv",
+    ...         "MX ZPhase": "T3_FeatureMeas.csv",
+    ...         "Laves":    "T3_FeatureMeas.csv",
+    ...     },
+    ...     measurement="Equivalent Diameter (um)",
+    ...     unit="µm",
+    ...     phase="M23C6",       # each entry will be filtered independently;
+    ...                          # pass phase=None and slice df manually for
+    ...                          # per-key phase selection via load_mipar().
+    ... )
+    """
+    if metric not in _VALID_METRICS:
+        raise ValueError(
+            f"metric must be one of {sorted(_VALID_METRICS)}, got {metric!r}."
+        )
+
+    feat_label = label or measurement
+    state_results: list[StateResult] = []
+    rows: list[dict] = []
+
+    for state_name, csv_path in files.items():
+        csv_path = Path(csv_path)
+        df = load_mipar_features(csv_path, image_col=image_col, phase_col=phase_col)
+
+        if measurement not in df.columns:
+            raise ValueError(
+                f"Measurement column {measurement!r} not found. "
+                f"Available columns: {list(df.columns)}"
+            )
+
+        if phase is not None:
+            available = df[phase_col].unique().tolist()
+            if phase not in available:
+                raise ValueError(
+                    f"Phase {phase!r} not found in state {state_name!r}. "
+                    f"Available phases: {available}"
+                )
+            df = df[df[phase_col] == phase]
+        else:
+            unique_phases = df[phase_col].unique().tolist()
+            if len(unique_phases) > 1:
+                warnings.warn(
+                    f"State {state_name!r}: no phase filter applied; combining "
+                    f"{len(unique_phases)} phases: {unique_phases}.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+        sr = StateResult(name=state_name)
+        for fov_name, fov_df in df.groupby(image_col, sort=True):
+            raw = pd.to_numeric(fov_df[measurement], errors="coerce")
+            mask = raw.notna() & (raw > 0)
+            n_bad = int((~mask).sum())
+            if n_bad > 0:
+                warnings.warn(
+                    f"State {state_name!r}, image {fov_name!r}: "
+                    f"dropped {n_bad} non-finite or non-positive value(s).",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            values = raw[mask].to_numpy(dtype=np.float64)
+            if len(values) == 0:
+                continue
+            data = _make_series(values, unit=unit, label=feat_label)
+            stats = describe(_series_to_measurement(data), ci=ci)
+            fr = FieldResult(
+                state=state_name,
+                path=csv_path,
+                data=data,
+                stats=stats,
+                fov_id=Path(str(fov_name)).stem,
+            )
+            sr.fields.append(fr)
+            rows.append(_field_to_row(fr))
+
+        if not sr.fields:
+            raise ValueError(
+                f"No valid FOV data found for state {state_name!r}. "
+                f"Check that {measurement!r} contains positive values "
+                f"for the requested phase."
+            )
         state_results.append(sr)
 
     summary = pd.DataFrame(rows)
@@ -515,6 +705,23 @@ def _sorted_fov_ids(fov_ids: list[str]) -> list[str]:
     )
 
 
+def _make_series(values: np.ndarray, unit: str, label: str) -> pd.Series:
+    """Build a Series with unit and label stored in attrs."""
+    s = pd.Series(values, name=label, dtype=np.float64)
+    s.attrs["unit"] = unit
+    s.attrs["label"] = label
+    return s
+
+
+def _series_to_measurement(series: pd.Series) -> MeasurementData:
+    """Convert a Series with attrs to MeasurementData for internal stats."""
+    return MeasurementData(
+        values=series.to_numpy(dtype=np.float64),
+        unit=series.attrs["unit"],
+        label=series.attrs["label"],
+    )
+
+
 def _get_metric(stats: DescribeResult, metric: str) -> float:
     """Extract the scalar value for *metric* from a DescribeResult."""
     if metric == "amean":
@@ -532,7 +739,7 @@ def _field_to_row(fr: FieldResult) -> dict:
         "fov": fr.fov_id if fr.fov_id is not None else fr.path.stem,
         "file": str(fr.path),
         "n": s.n,
-        "unit": fr.data.unit,
+        "unit": fr.data.attrs.get("unit", ""),
         "amean": s.amean.mean,
         "amean_std": s.amean.std,
         "amean_ci_low": s.amean.ci_low,

@@ -13,9 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-state scripted analysis pipeline — run the full load → statistics workflow across any number of material states (heat treatments, compositions, processing routes, etc.), each with multiple fields-of-view (`stamp.pipeline.run()`)
 - Side-by-side box plot comparing per-field-of-view mean statistics across all material states, with individual data points overlaid (`stamp.pipeline.boxplot()`)
 - Export the per-field-of-view summary table (arithmetic mean, geometric mean, median, CIs, percentiles) to CSV (`stamp.pipeline.export_csv()`)
+- Run the full pipeline directly on MIPAR feature-measurement CSVs — groups rows by image/FOV, filters to a chosen precipitate phase, and returns the same `PipelineResult` as `run()` (`stamp.pipeline.run_mipar()`)
 
 **I/O**
-- Load grain measurements from CSV, Excel (.xlsx/.xls), or plain-text files into a validated array, with automatic removal of non-finite and non-positive values (`stamp.io.load()`)
+- Load grain measurements from CSV, Excel (.xlsx/.xls), or plain-text files — `stamp.io.load()` now returns a single-column `pd.DataFrame` with physical unit and label stored in `df.attrs`, making the loading API consistent with `load_mipar_features()`
+- Load a MIPAR feature-measurement CSV into a pandas DataFrame for custom filtering and inspection (`stamp.io.load_mipar_features()`)
 
 **Stereology**
 - Convert 2-D projected areas to equivalent circle diameters (`stamp.stereo.ecd_from_area()`)
