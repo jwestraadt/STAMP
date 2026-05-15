@@ -58,6 +58,9 @@ notebooks/*.csv
 notebooks/data/multi_state/
 notebooks/data/multi_state_batch/
 
+# Spurious nested directory created by Sphinx docs build
+notebooks/notebooks/
+
 # OS
 .DS_Store
 Thumbs.db
