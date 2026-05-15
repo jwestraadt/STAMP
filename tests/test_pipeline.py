@@ -17,6 +17,7 @@ from stamp.pipeline import (
     boxplot,
     export_csv,
     run,
+    run_batch,
 )
 
 # ---------------------------------------------------------------------------
@@ -211,3 +212,120 @@ def test_export_csv_columns(two_state_dir, tmp_path):
     df = pd.read_csv(out)
     for col in ("state", "fov", "n", "amean", "gmean", "median", "p25", "p75"):
         assert col in df.columns
+
+
+# ---------------------------------------------------------------------------
+# run_batch()
+# ---------------------------------------------------------------------------
+
+
+def _write_batch_csv(path: Path, state: str, n_fovs: int, n_grains: int) -> Path:
+    """Write a batch CSV with label = {state}_fov{N:02d}_grain{M:03d}."""
+    rows = []
+    for fov in range(1, n_fovs + 1):
+        vals = RNG.lognormal(mean=np.log(10), sigma=0.3, size=n_grains)
+        for g_idx, v in enumerate(vals, start=1):
+            rows.append({"label": f"{state}_fov{fov:02d}_grain{g_idx:03d}", "ecd": v})
+    pd.DataFrame(rows).to_csv(path, index=False)
+    return path
+
+
+@pytest.fixture()
+def batch_states(tmp_path):
+    """Two states as batch CSV files, 3 FOVs × 50 grains each."""
+    return {
+        "StateA": _write_batch_csv(tmp_path / "stateA.csv", "StateA", 3, 50),
+        "StateB": _write_batch_csv(tmp_path / "stateB.csv", "StateB", 3, 50),
+    }
+
+
+def test_run_batch_returns_pipeline_result(batch_states):
+    result = run_batch(batch_states, measurement_column="ecd", unit="µm")
+    assert isinstance(result, PipelineResult)
+    assert len(result.states) == 2
+
+
+def test_run_batch_fov_count(batch_states):
+    result = run_batch(batch_states, measurement_column="ecd", unit="µm")
+    for sr in result.states:
+        assert len(sr.fields) == 3
+
+
+def test_run_batch_fov_id_set(batch_states):
+    result = run_batch(batch_states, measurement_column="ecd", unit="µm")
+    for sr in result.states:
+        for fr in sr.fields:
+            assert fr.fov_id is not None
+            assert fr.fov_id.startswith("fov")
+
+
+def test_run_batch_fov_id_in_summary(batch_states):
+    result = run_batch(batch_states, measurement_column="ecd", unit="µm")
+    fov_values = result.summary["fov"].tolist()
+    assert all(v.startswith("fov") for v in fov_values)
+
+
+def test_run_batch_summary_shape(batch_states):
+    result = run_batch(batch_states, measurement_column="ecd", unit="µm")
+    assert len(result.summary) == 6  # 2 states × 3 FOVs
+
+
+def test_run_batch_natural_sort(tmp_path):
+    """FOVs are returned in natural order: fov1 < fov2 < ... < fov10."""
+    rows = []
+    for fov in range(1, 11):
+        for g in range(1, 11):
+            rows.append(
+                {"label": f"S_fov{fov}_grain{g:02d}", "ecd": RNG.lognormal(2, 0.3)}
+            )
+    path = tmp_path / "s.csv"
+    pd.DataFrame(rows).to_csv(path, index=False)
+    result = run_batch({"S": path}, measurement_column="ecd", unit="µm")
+    fov_ids = result.summary["fov"].tolist()
+    assert fov_ids == [f"fov{i}" for i in range(1, 11)]
+
+
+def test_run_batch_invalid_metric(batch_states):
+    with pytest.raises(ValueError, match="metric must be one of"):
+        run_batch(batch_states, measurement_column="ecd", unit="µm", metric="variance")
+
+
+def test_run_batch_missing_file(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        run_batch({"S": tmp_path / "missing.csv"}, measurement_column="ecd", unit="µm")
+
+
+def test_run_batch_no_fov_match(tmp_path):
+    path = tmp_path / "bad.csv"
+    pd.DataFrame(
+        {"label": ["state_A_grain001", "state_A_grain002"], "ecd": [1.0, 2.0]}
+    ).to_csv(path, index=False)
+    with pytest.raises(ValueError, match="No FOV groups found"):
+        run_batch({"S": path}, measurement_column="ecd", unit="µm")
+
+
+def test_run_batch_output_dir(batch_states, tmp_path):
+    out = tmp_path / "output"
+    result = run_batch(
+        batch_states, measurement_column="ecd", unit="µm", output_dir=out
+    )
+    assert (out / "pipeline_summary.csv").exists()
+    assert (out / "boxplot_amean.png").exists()
+    assert isinstance(result, PipelineResult)
+
+
+@pytest.mark.parametrize("metric", ["amean", "gmean", "median"])
+def test_run_batch_metrics(batch_states, metric):
+    result = run_batch(batch_states, measurement_column="ecd", unit="µm", metric=metric)
+    assert metric in result.summary.columns
+
+
+def test_run_batch_integer_columns(tmp_path):
+    """Measurement and label columns specified as integer indices."""
+    path = tmp_path / "int_cols.csv"
+    pd.DataFrame({"label": ["S_fov01_g001", "S_fov01_g002"], "ecd": [3.0, 4.0]}).to_csv(
+        path, index=False
+    )
+    result = run_batch({"S": path}, measurement_column=1, unit="µm", label_column=0)
+    assert len(result.summary) == 1
+    assert result.summary["fov"].iloc[0] == "fov01"

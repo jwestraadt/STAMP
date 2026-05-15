@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field as dc_field
@@ -50,12 +52,17 @@ class FieldResult:
         Loaded measurement data.
     stats : DescribeResult
         Full descriptive statistics for this field.
+    fov_id : str, optional
+        Explicit FOV identifier.  When set (e.g. by :func:`run_batch`),
+        this value is used as the ``fov`` column in the summary DataFrame
+        instead of ``path.stem``.
     """
 
     state: str
     path: Path
     data: MeasurementData
     stats: DescribeResult
+    fov_id: str | None = None
 
 
 @dataclass
@@ -314,6 +321,165 @@ def export_csv(result: PipelineResult, output_path: Path | str) -> None:
     result.summary.to_csv(output_path, index=False)
 
 
+def run_batch(
+    states: dict[str, Path | str],
+    measurement_column: str | int,
+    unit: str,
+    label_column: str | int = "label",
+    fov_regex: str = r"fov\d+",
+    label: str | None = None,
+    ci: float = 0.95,
+    output_dir: Path | str | None = None,
+    metric: str = "amean",
+    dpi: int = 300,
+    **read_kwargs,
+) -> PipelineResult:
+    """Run the pipeline on batch-format CSV files (one file per material state).
+
+    Each batch file holds measurements for all fields-of-view of one state.
+    Rows are identified by a label column whose values follow the convention
+    ``<state>_<fov_id>_<feature_id>`` (e.g.
+    ``As-received_fov01_grain003``).  The FOV identifier is extracted by
+    searching *fov_regex* (case-insensitive) against each label; rows with
+    no match are dropped with a warning.
+
+    Parameters
+    ----------
+    states : dict
+        Mapping of state name → path to the batch CSV file for that state.
+    measurement_column : str or int
+        Column name or 0-based index of the measured values.
+    unit : str
+        Physical unit string, e.g. ``"µm"``.
+    label_column : str or int, optional
+        Column name or 0-based index of the row label.  Default ``"label"``.
+    fov_regex : str, optional
+        Regular expression (case-insensitive) to extract the FOV identifier
+        from each row label.  Default ``r"fov\\d+"`` matches ``fov01``,
+        ``fov1``, ``FOV02``, etc.
+    label : str, optional
+        Display label for the measured feature.  Defaults to
+        *measurement_column* when it is a string.
+    ci : float, optional
+        Confidence level for all statistics.  Default 0.95.
+    output_dir : Path or str, optional
+        If given, writes ``pipeline_summary.csv`` and
+        ``boxplot_<metric>.png`` to this directory automatically.
+    metric : str, optional
+        Statistic for the auto-saved box plot: ``"amean"``, ``"gmean"``, or
+        ``"median"``.  Default ``"amean"``.
+    dpi : int, optional
+        Figure resolution when *output_dir* is set.  Default 300.
+    **read_kwargs
+        Extra keyword arguments forwarded to :func:`pandas.read_csv`
+        (e.g. ``sep``, ``skiprows``).
+
+    Returns
+    -------
+    PipelineResult
+
+    Raises
+    ------
+    ValueError
+        If *metric* is unknown or no valid FOV groups are found in a file.
+    FileNotFoundError
+        If a supplied path does not exist.
+
+    Examples
+    --------
+    >>> result = run_batch(
+    ...     states={
+    ...         "As-received":    "data/as_received.csv",
+    ...         "Annealed 600°C": "data/annealed_600.csv",
+    ...     },
+    ...     measurement_column="diameter_um",
+    ...     unit="µm",
+    ... )
+    >>> result.summary.head()
+    """
+    if metric not in _VALID_METRICS:
+        raise ValueError(
+            f"metric must be one of {sorted(_VALID_METRICS)}, got {metric!r}."
+        )
+
+    pattern = re.compile(fov_regex, re.IGNORECASE)
+    state_results: list[StateResult] = []
+    rows: list[dict] = []
+
+    for state_name, csv_path in states.items():
+        csv_path = Path(csv_path)
+        if not csv_path.exists():
+            raise FileNotFoundError(f"File not found: {csv_path}")
+
+        df = pd.read_csv(csv_path, **read_kwargs)
+
+        lbl_series = (
+            df[label_column]
+            if isinstance(label_column, str)
+            else df.iloc[:, label_column]
+        ).astype(str)
+
+        meas_series = pd.to_numeric(
+            df[measurement_column]
+            if isinstance(measurement_column, str)
+            else df.iloc[:, measurement_column],
+            errors="coerce",
+        )
+
+        fov_ids = lbl_series.map(lambda s: _extract_fov_id(s, pattern))
+
+        n_unmatched = int(fov_ids.isna().sum())
+        if n_unmatched > 0:
+            warnings.warn(
+                f"State {state_name!r}: {n_unmatched} row(s) had no FOV match "
+                f"for pattern {fov_regex!r} and were skipped.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        unique_fovs = _sorted_fov_ids(fov_ids.dropna().unique().tolist())
+        if not unique_fovs:
+            raise ValueError(
+                f"No FOV groups found for state {state_name!r} "
+                f"using pattern {fov_regex!r}."
+            )
+
+        feat_label = label or (
+            measurement_column if isinstance(measurement_column, str) else "Feature"
+        )
+        sr = StateResult(name=state_name)
+        for fov_id in unique_fovs:
+            mask = (fov_ids == fov_id) & meas_series.notna() & (meas_series > 0)
+            values = meas_series[mask].to_numpy(dtype=np.float64)
+            if len(values) == 0:
+                continue
+            data = MeasurementData(values=values, unit=unit, label=feat_label)
+            stats = describe(data, ci=ci)
+            fr = FieldResult(
+                state=state_name,
+                path=csv_path,
+                data=data,
+                stats=stats,
+                fov_id=fov_id,
+            )
+            sr.fields.append(fr)
+            rows.append(_field_to_row(fr))
+        state_results.append(sr)
+
+    summary = pd.DataFrame(rows)
+    result = PipelineResult(states=state_results, summary=summary)
+
+    if output_dir is not None:
+        out = Path(output_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        export_csv(result, out / "pipeline_summary.csv")
+        fig = boxplot(result, metric=metric, dpi=dpi)
+        fig.savefig(out / f"boxplot_{metric}.png", dpi=dpi, bbox_inches="tight")
+        plt.close(fig)
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -333,6 +499,22 @@ def _resolve_files(source: Path | str | Sequence[Path | str]) -> list[Path]:
     return [Path(f) for f in source]
 
 
+def _extract_fov_id(label: str, pattern: re.Pattern) -> str | None:
+    """Return the lower-cased FOV token matched by *pattern*, or None."""
+    m = pattern.search(label)
+    return m.group(0).lower() if m else None
+
+
+def _sorted_fov_ids(fov_ids: list[str]) -> list[str]:
+    """Natural-sort FOV id strings so fov2 < fov10."""
+    return sorted(
+        fov_ids,
+        key=lambda s: [
+            int(t) if t.isdigit() else t for t in re.split(r"(\d+)", s) if t
+        ],
+    )
+
+
 def _get_metric(stats: DescribeResult, metric: str) -> float:
     """Extract the scalar value for *metric* from a DescribeResult."""
     if metric == "amean":
@@ -347,7 +529,7 @@ def _field_to_row(fr: FieldResult) -> dict:
     s = fr.stats
     return {
         "state": fr.state,
-        "fov": fr.path.stem,
+        "fov": fr.fov_id if fr.fov_id is not None else fr.path.stem,
         "file": str(fr.path),
         "n": s.n,
         "unit": fr.data.unit,
