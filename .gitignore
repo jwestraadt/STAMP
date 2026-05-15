@@ -54,6 +54,10 @@ docs/notebooks/
 notebooks/*.csv
 /*.png
 
+# Generated notebook data (keep apparent_diameters.txt)
+notebooks/data/multi_state/
+notebooks/data/multi_state_batch/
+
 # OS
 .DS_Store
 Thumbs.db
