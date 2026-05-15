@@ -33,7 +33,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/jwestraadt/STAMP"
-Documentation = "https://jwestraadt.github.io/STAMP"
+Documentation = "https://stamp.readthedocs.io"
 Repository = "https://github.com/jwestraadt/STAMP"
 "Bug Tracker" = "https://github.com/jwestraadt/STAMP/issues"
 Changelog = "https://github.com/jwestraadt/STAMP/blob/main/CHANGELOG.md"
