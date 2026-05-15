@@ -1,3 +1,6 @@
+<div align="center">
+<img src="docs/_static/logo.svg" alt="STAMP logo" width="120"/>
+
 # STAMP
 
 [![CI](https://github.com/jwestraadt/STAMP/actions/workflows/ci.yml/badge.svg)](https://github.com/jwestraadt/STAMP/actions/workflows/ci.yml)
@@ -7,6 +10,7 @@
 [![codecov](https://codecov.io/gh/jwestraadt/STAMP/branch/main/graph/badge.svg)](https://codecov.io/gh/jwestraadt/STAMP)
 
 **Stereological Tools for Analysis of Microstructural Parameters**
+</div>
 
 STAMP is a scientific Python package for quantitative 2-D microstructural analysis.
 It provides tools to load grain or precipitate measurements, apply stereological

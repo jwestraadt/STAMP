@@ -34,8 +34,30 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
 }
 
-html_theme = "furo"
+html_theme = "pydata_sphinx_theme"
 html_title = "STAMP"
+
+html_theme_options = {
+    "logo": {
+        "image_light": "_static/logo.svg",
+        "image_dark": "_static/logo.svg",
+        "text": "STAMP",
+    },
+    "navbar_start": ["navbar-logo"],
+    "navbar_center": ["navbar-nav"],
+    "navbar_end": ["navbar-icon-links"],
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/jwestraadt/STAMP",
+            "icon": "fa-brands fa-github",
+            "type": "fontawesome",
+        }
+    ],
+    "show_toc_level": 2,
+    "navigation_with_keys": True,
+    "use_edit_page_button": False,
+}
 
 source_suffix = {
     ".rst": "restructuredtext",

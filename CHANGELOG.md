@@ -41,4 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `notebooks/01_quickstart.ipynb` — end-to-end workflow: load measurements, compute statistics, apply Saltykov and two-step corrections, generate all plots
 - `notebooks/02_simulation_validation.ipynb` — Monte Carlo validation of stereological corrections including Wicksell bias demo, recovery accuracy table, and sample-size sweep
 
+**Documentation**
+- Added STAMP logo (stylised grain-boundary pattern) shown in the docs navbar and README
+- Switched documentation theme to PyData Sphinx Theme with a top navigation bar (Installation, Examples, Contributing, Changelog, API Reference) and GitHub link
+
 [Unreleased]: https://github.com/jwestraadt/STAMP/compare/HEAD...HEAD
