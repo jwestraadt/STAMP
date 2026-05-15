@@ -17,13 +17,15 @@ The stereological methods and statistical approaches follow those implemented in
 
 **In scope (v0.x)**
 
-- File I/O: CSV, Excel (`.xlsx` / `.xls`), plain text (`.txt`, `.tsv`)
+- File I/O: CSV, Excel (`.xlsx` / `.xls`), plain text (`.txt`, `.tsv`); MIPAR feature-measurement export import
 - Stereological corrections: Saltykov sphere-size unfolding, two-step lognormal fitting,
   linear intercept → grain size (Fullman 1953)
 - Statistics: arithmetic mean, geometric mean, median, KDE mode — each with confidence intervals
 - Distribution fitting: normal and log-normal via MLE + KS goodness-of-fit
 - Visualisation: distribution histograms with KDE overlay, Saltykov dual-panel plot,
-  two-step lognormal plot, Q-Q plot
+  two-step lognormal plot, Q-Q plot, PDF/CDF profile
+- Multi-state pipeline: per-FOV CSV files, single-file batch format, and MIPAR export format;
+  summary DataFrame and box-plot figure produced automatically
 
 **Deferred (later versions)**
 
@@ -38,12 +40,13 @@ The stereological methods and statistical approaches follow those implemented in
 
 ```
 src/stamp/
-├── _types.py     # shared dataclasses (MeasurementData, results)
-├── io.py         # data loading
+├── _types.py     # shared dataclasses (MeasurementData, results); _coerce_to_measurement adapter
+├── io.py         # data loading (load, load_mipar_features)
 ├── stereo.py     # stereological corrections
 ├── simulate.py   # synthetic grain size simulation and validation
 ├── stats.py      # descriptive statistics + distribution fitting
-└── plot.py       # visualisation
+├── plot.py       # visualisation
+└── pipeline.py   # multi-state analysis pipeline (run, run_batch, run_mipar, boxplot, export_csv)
 ```
 
 All public dataclasses and result types are re-exported from `stamp` directly so users never
@@ -53,7 +56,26 @@ need to import from `stamp._types`.
 
 ## Data model
 
-### `MeasurementData`
+### Public API — `pd.DataFrame` with attrs
+
+`stamp.io.load()` returns a single-column `pd.DataFrame`.  Metadata is stored in
+`DataFrame.attrs`:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `"unit"` | `str` | Physical unit string, e.g. `"µm"` |
+| `"label"` | `str` | Human-readable feature name, e.g. `"Grain ECD"` |
+
+All public functions in `stamp.stats`, `stamp.stereo`, and `stamp.plot` that accept a `data`
+argument will also accept a single-column `pd.DataFrame` or an attrs-labelled `pd.Series`
+directly.  The conversion is handled internally by `_coerce_to_measurement()` — callers never
+need to unwrap the DataFrame manually.
+
+### Internal — `MeasurementData`
+
+`MeasurementData` is the package's internal representation.  It is re-exported from `stamp`
+for users who build on it directly (e.g. when passing simulation output to stats functions),
+but the primary user-facing type returned by `load()` is `pd.DataFrame`.
 
 ```python
 @dataclass
@@ -75,7 +97,7 @@ class MeasurementData:
 
 ## `stamp.io`
 
-### `load(path, column, unit, label, delimiter, skip_rows, sheet_name) → MeasurementData`
+### `load(path, column, unit, label, delimiter, skip_rows, sheet_name) → pd.DataFrame`
 
 Load a single column of positive measurements from a delimited text or Excel file.
 
@@ -89,7 +111,9 @@ Load a single column of positive measurements from a delimited text or Excel fil
 | `skip_rows` | `int` | `0` | Rows to skip before the header |
 | `sheet_name` | `str \| int` | `0` | Excel sheet name or 0-based index (ignored for text files) |
 
-**Returns** `MeasurementData`
+**Returns** `pd.DataFrame` — single-column DataFrame of cleaned finite positive values.
+The column is named after *label*.  `df.attrs["unit"]` and `df.attrs["label"]` carry the
+physical unit and display label.
 
 **Raises**
 
@@ -102,6 +126,40 @@ Load a single column of positive measurements from a delimited text or Excel fil
   `warnings.warn` states the count of removed rows.
 - Supported extensions: `.csv`, `.txt`, `.tsv` (pandas `read_csv`); `.xlsx`, `.xls`
   (pandas `read_excel`).
+- The returned DataFrame is accepted directly by all `stamp.stats`, `stamp.stereo`,
+  and `stamp.plot` functions without any unwrapping.
+
+---
+
+### `load_mipar_features(path, image_col, phase_col) → pd.DataFrame`
+
+Load a MIPAR feature-measurement CSV into a pandas DataFrame.
+
+MIPAR (Material Image Processing and Reconstruction) exports one CSV per material state.
+Each row is one measured feature (e.g. a precipitate particle).  The file contains at
+least an image/FOV column, a phase/layer column, and one or more measurement columns.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `path` | `str \| Path` | — | Path to the MIPAR CSV (or Excel) file |
+| `image_col` | `str` | `"Image"` | Column identifying the field-of-view image |
+| `phase_col` | `str` | `"Layer"` | Column identifying the precipitate phase/layer |
+
+**Returns** `pd.DataFrame` — full data table with all columns as exported by MIPAR.
+`image_col` and `phase_col` are cast to `str`; all other columns are left as-is.
+
+**Raises**
+
+- `FileNotFoundError` — path does not exist
+- `ValueError` — unsupported extension, or `image_col` / `phase_col` not present
+
+**Behaviour**
+
+- Handles the trailing-comma quirk in MIPAR CSV exports (phantom `Unnamed` column is
+  dropped automatically).
+- Returns the complete table for all phases; use `run_mipar()` to group by image/FOV and
+  filter by phase automatically, or filter the DataFrame manually before passing to
+  stats functions.
 
 ---
 
@@ -117,7 +175,7 @@ ECD = 2 × √(area / π)
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `data` | `MeasurementData` | Areas; unit should be a length² string (not enforced) |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | Areas; unit should be a length² string (not enforced) |
 
 **Returns** `MeasurementData` — diameters; unit is derived by stripping a trailing `²`
 (e.g. `"µm²"` → `"µm"`). Label becomes `"ECD"`.
@@ -139,7 +197,7 @@ applied element-wise to the full chord-length distribution.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `data` | `MeasurementData` | Linear intercept chord lengths |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | Linear intercept chord lengths |
 
 **Returns** `MeasurementData` — corrected grain diameters; label becomes
 `"Corrected Grain Diameter"`.
@@ -176,7 +234,7 @@ probability equation.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data` | `MeasurementData` | — | 2D circle diameters |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | — | 2D circle diameters |
 | `n_bins` | `int` | `10` | Number of equal-width bins; must be in [3, 25] |
 | `left_edge` | `float \| str` | `0` | Lower histogram bound; pass `"min"` to use `data.values.min()` |
 
@@ -221,7 +279,7 @@ error. Follows the two-step method of Lopez-Sanchez & Llana-Funez (2016).
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data` | `MeasurementData` | — | 2D circle diameters |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | — | 2D circle diameters |
 | `bin_range` | `tuple[int, int]` | `(10, 20)` | Inclusive range of bin counts to test |
 
 **Returns**
@@ -327,7 +385,7 @@ Arithmetic mean with confidence interval. Optimal for normally distributed popul
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data` | `MeasurementData` | — | Input measurements |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | — | Input measurements |
 | `ci` | `float` | `0.95` | Confidence level in (0, 1) |
 | `method` | `str` | `"ASTM"` | CI method: `"ASTM"`, `"GCI"`, or `"mCox"` |
 
@@ -365,7 +423,7 @@ Computed by log-transforming, computing the arithmetic mean, then back-transform
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data` | `MeasurementData` | — | Input measurements |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | — | Input measurements |
 | `ci` | `float` | `0.95` | Confidence level |
 | `method` | `str` | `"CLT"` | CI method: `"CLT"` or `"bayes"` |
 
@@ -387,7 +445,7 @@ Median with interquartile range and confidence interval.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data` | `MeasurementData` | — | Input measurements |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | — | Input measurements |
 | `ci` | `float` | `0.95` | Confidence level |
 
 **Returns**
@@ -416,7 +474,7 @@ Estimate the distribution mode using Gaussian kernel density estimation.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data` | `MeasurementData` | — | Input measurements |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | — | Input measurements |
 | `bandwidth` | `str \| float` | `"silverman"` | KDE bandwidth: `"silverman"`, `"scott"`, or a positive float |
 
 **Returns**
@@ -443,7 +501,7 @@ Fit a parametric distribution to the data via maximum likelihood estimation.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data` | `MeasurementData` | — | Input measurements |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | — | Input measurements |
 | `distribution` | `str` | `"lognormal"` | `"normal"` or `"lognormal"` |
 
 **Returns**
@@ -475,7 +533,7 @@ and returns all results in one object.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data` | `MeasurementData` | — | Input measurements |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | — | Input measurements |
 | `ci` | `float` | `0.95` | Confidence level passed to all sub-functions |
 
 **Returns**
@@ -525,7 +583,7 @@ Histogram and/or KDE of the 2D measurement distribution with annotated averages.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data` | `MeasurementData` | — | Input measurements |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | — | Input measurements |
 | `plot` | `tuple[str, ...]` | `("hist", "kde")` | Elements to draw; subset of `{"hist", "kde"}` |
 | `avg` | `tuple[str, ...]` | `("amean", "gmean", "median", "mode")` | Averages to annotate as vertical lines |
 | `bins` | `int \| str` | `"auto"` | Bin count or numpy strategy (`"doane"`, `"fd"`, `"scott"`, etc.) |
@@ -573,13 +631,30 @@ Single-panel figure from a `TwoStepResult`:
 
 ---
 
+### `distribution_profile(data, kind, fit, output_path, dpi, figsize) → Figure`
+
+Smooth PDF or empirical CDF profile with optional fitted distribution overlay.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | — | Input measurements |
+| `kind` | `str` | `"pdf"` | `"pdf"` (KDE curve + fill) or `"cdf"` (empirical step) |
+| `fit` | `FitResult \| None` | `None` | Overlays the fitted parametric curve as a dashed line |
+| `output_path` | `str \| Path \| None` | `None` | Save path |
+| `dpi` | `int` | `300` | Output resolution |
+| `figsize` | `tuple[float, float]` | `(6.4, 4.8)` | Figure size in inches |
+
+**Raises** `ValueError` — `kind` is not `"pdf"` or `"cdf"`.
+
+---
+
 ### `qq_plot(data, distribution, percent, output_path, dpi, figsize) → Figure`
 
 Quantile-quantile plot comparing the empirical distribution to a theoretical one.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data` | `MeasurementData` | — | Input measurements |
+| `data` | `MeasurementData \| pd.DataFrame \| pd.Series` | — | Input measurements |
 | `distribution` | `str` | `"lognormal"` | `"normal"` or `"lognormal"` |
 | `percent` | `float` | `2` | Percentile trim applied to each tail before plotting |
 | `output_path` | `str \| Path \| None` | `None` | Save path |
@@ -611,6 +686,152 @@ stereologically corrected estimate.
 | `figsize` | `tuple[float, float]` | `(12, 4.8)` | Figure size in inches |
 
 **Raises** `TypeError` — if `corrected` is not a `SaltykovResult` or `TwoStepResult`.
+
+---
+
+## `stamp.pipeline`
+
+High-level pipeline that loads, analyses, and aggregates multi-state microstructural data
+in one call.  Three entry points cover the three common file layouts; all return the same
+`PipelineResult` structure.
+
+### Result types
+
+```python
+@dataclass
+class FieldResult:
+    state: str           # parent material state name
+    path: Path           # source file path
+    data: pd.Series      # measurement values; attrs["unit"] and attrs["label"] set
+    stats: DescribeResult
+    fov_id: str | None   # explicit FOV identifier (set by run_batch / run_mipar)
+
+@dataclass
+class StateResult:
+    name: str
+    fields: list[FieldResult]   # one entry per field-of-view
+
+@dataclass
+class PipelineResult:
+    states: list[StateResult]
+    summary: pd.DataFrame       # one row per FOV; see column list below
+```
+
+**`PipelineResult.summary` columns**
+
+`state`, `fov`, `file`, `n`, `unit`,
+`amean`, `amean_std`, `amean_ci_low`, `amean_ci_high`,
+`gmean`, `gmean_std`, `gmean_ci_low`, `gmean_ci_high`,
+`median`, `median_iqr`, `median_ci_low`, `median_ci_high`,
+`peak`, `p5`, `p10`, `p25`, `p75`, `p90`, `p95`.
+
+---
+
+### `run(states, column, unit, label, ci, output_dir, metric, dpi, **load_kwargs) → PipelineResult`
+
+Run the full analysis pipeline on multiple material states where each field-of-view is a
+separate file.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `states` | `dict[str, Path \| str \| Sequence]` | — | State name → directory, single file, or list of files |
+| `column` | `str \| int` | — | Column name or 0-based index passed to `stamp.io.load` |
+| `unit` | `str` | — | Physical unit string |
+| `label` | `str \| None` | `None` | Display label; defaults to column name |
+| `ci` | `float` | `0.95` | Confidence level |
+| `output_dir` | `Path \| str \| None` | `None` | If given, writes `pipeline_summary.csv` and `boxplot_<metric>.png` |
+| `metric` | `str` | `"amean"` | Statistic for auto-saved box plot: `"amean"`, `"gmean"`, or `"median"` |
+| `dpi` | `int` | `300` | Figure resolution when `output_dir` is set |
+| `**load_kwargs` | | | Forwarded to `stamp.io.load` (e.g. `delimiter`, `skip_rows`) |
+
+**State source resolution** — each dict value may be:
+- a directory path (all supported files sorted alphabetically become the FOVs),
+- a single file path, or
+- a sequence of file paths.
+
+**Raises** `ValueError` — unknown `metric` or no files found for a state.
+
+---
+
+### `run_batch(states, measurement_column, unit, label_column, fov_regex, label, ci, output_dir, metric, dpi, **read_kwargs) → PipelineResult`
+
+Run the pipeline on batch-format CSV files where one file per state holds measurements for
+all fields-of-view together.
+
+Each row label must embed a FOV identifier matched by `fov_regex`
+(e.g. `As-received_fov01_grain003`).
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `states` | `dict[str, Path \| str]` | — | State name → path to the batch CSV for that state |
+| `measurement_column` | `str \| int` | — | Column of measured values |
+| `unit` | `str` | — | Physical unit string |
+| `label_column` | `str \| int` | `"label"` | Column containing the row label |
+| `fov_regex` | `str` | `r"fov\d+"` | Regex (case-insensitive) to extract FOV ID from label |
+| `label` | `str \| None` | `None` | Display label; defaults to `measurement_column` |
+| `ci` | `float` | `0.95` | Confidence level |
+| `output_dir` | `Path \| str \| None` | `None` | Auto-save destination |
+| `metric` | `str` | `"amean"` | Box-plot statistic |
+| `dpi` | `int` | `300` | Figure resolution |
+| `**read_kwargs` | | | Forwarded to `pandas.read_csv` |
+
+**Raises** `ValueError` — unknown `metric` or no valid FOV groups found.
+
+---
+
+### `run_mipar(files, measurement, unit, phase, image_col, phase_col, label, ci, output_dir, metric, dpi) → PipelineResult`
+
+Run the pipeline on MIPAR feature-measurement CSV files.  MIPAR exports one file per
+material state containing measurements for all FOVs and all precipitate phases together.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `files` | `dict[str, Path \| str]` | — | State name → path to the MIPAR CSV (or Excel) file |
+| `measurement` | `str` | — | Measurement column, e.g. `"Equivalent Diameter (um)"` |
+| `unit` | `str` | — | Physical unit string |
+| `phase` | `str \| None` | `None` | Filter to this phase; if `None` all phases are combined (warning issued when >1 phase present) |
+| `image_col` | `str` | `"Image"` | Column identifying the FOV image |
+| `phase_col` | `str` | `"Layer"` | Column identifying the precipitate phase |
+| `label` | `str \| None` | `None` | Display label; defaults to `measurement` |
+| `ci` | `float` | `0.95` | Confidence level |
+| `output_dir` | `Path \| str \| None` | `None` | Auto-save destination |
+| `metric` | `str` | `"amean"` | Box-plot statistic |
+| `dpi` | `int` | `300` | Figure resolution |
+
+**Raises**
+
+- `ValueError` — unknown `metric`, `measurement` column not found, `phase` not present, or
+  state has no valid data after filtering.
+- `FileNotFoundError` — any supplied path does not exist.
+
+---
+
+### `boxplot(result, metric, output_path, dpi, figsize) → Figure`
+
+Side-by-side box plot comparing per-FOV statistics across material states.  Each box spans
+the interquartile range of the per-FOV metric values; individual points are overlaid as a
+jittered strip plot.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `result` | `PipelineResult` | — | Output of `run`, `run_batch`, or `run_mipar` |
+| `metric` | `str` | `"amean"` | `"amean"`, `"gmean"`, or `"median"` |
+| `output_path` | `Path \| str \| None` | `None` | Save path |
+| `dpi` | `int` | `300` | Output resolution |
+| `figsize` | `tuple[float, float] \| None` | `None` | Defaults to `(max(6.4, n_states × 1.8), 4.8)` |
+
+**Raises** `ValueError` — unknown `metric`.
+
+---
+
+### `export_csv(result, output_path) → None`
+
+Write the pipeline summary table to a CSV file.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `result` | `PipelineResult` | Output of any pipeline function |
+| `output_path` | `Path \| str` | Destination file path |
 
 ---
 

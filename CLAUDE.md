@@ -159,6 +159,81 @@ Example entry:
 
 ---
 
+## Data model — canonical patterns (read before touching io / stats / stereo / plot / pipeline)
+
+**This is the single authoritative design. Do not introduce alternative implementations.**
+
+### Public boundary: `pd.DataFrame` with attrs
+
+`stamp.io.load()` returns a **single-column `pd.DataFrame`**.  Two metadata keys are always
+set on the frame:
+
+```python
+df.attrs["unit"]   # str — physical unit, e.g. "µm"
+df.attrs["label"]  # str — display name,  e.g. "Grain ECD"
+```
+
+The column itself is named after `label`.  All downstream public functions (`stamp.stats.*`,
+`stamp.stereo.*`, `stamp.plot.*`) accept this DataFrame directly — callers never unwrap it.
+
+`stamp.io.load_mipar_features()` returns the **full MIPAR table** as a plain `pd.DataFrame`
+(multiple columns, no attrs).  It is not a measurement container; pass individual columns to
+`_coerce_to_measurement` or use `stamp.pipeline.run_mipar()` to process it.
+
+### Internal adapter: `_coerce_to_measurement`
+
+Every public stats / stereo / plot function that takes a `data` argument must call
+`_coerce_to_measurement(data)` as its **first line** (imported from `stamp._types`).  This
+converts a single-column `pd.DataFrame` or an attrs-labelled `pd.Series` to a
+`MeasurementData` transparently.  A bare `MeasurementData` is passed through unchanged.
+
+Do **not** bypass this by adding separate `isinstance` branches inside public functions.
+
+### Internal representation: `MeasurementData`
+
+All computation (stereo unfolding, stats CI methods, KDE, plots) operates on `MeasurementData`:
+
+```python
+@dataclass
+class MeasurementData:
+    values: np.ndarray  # 1-D float64, all finite, all > 0
+    unit: str
+    label: str
+```
+
+`MeasurementData` is re-exported from `stamp` for users who need it (e.g. simulation output),
+but it is **not** the return type of `load()`.
+
+### Pipeline internal: `pd.Series` with attrs
+
+Inside `stamp.pipeline`, per-FOV data is stored as a `pd.Series` with attrs (not a
+`MeasurementData` and not a `pd.DataFrame`).  Use the two private helpers — never construct
+these series ad-hoc:
+
+```python
+_make_series(values: np.ndarray, unit: str, label: str) -> pd.Series
+_series_to_measurement(series: pd.Series) -> MeasurementData
+```
+
+`FieldResult.data` is a `pd.Series`.  Access metadata via `fr.data.attrs["unit"]` and
+`fr.data.attrs["label"]`, **not** `.unit` / `.label` attribute access.
+
+### `TYPE_CHECKING` guard for pandas in `_types.py`
+
+`_types.py` does not import pandas at module level.  The `pd` annotation in
+`_coerce_to_measurement` is guarded with:
+
+```python
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    import pandas as pd
+```
+
+This keeps `_types.py` lean and avoids a circular import.  Do not add a top-level
+`import pandas as pd` to `_types.py`.
+
+---
+
 ## Project structure
 
 ```

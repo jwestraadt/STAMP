@@ -7,7 +7,12 @@ import warnings
 import numpy as np
 from scipy.optimize import curve_fit
 
-from stamp._types import MeasurementData, SaltykovResult, TwoStepResult
+from stamp._types import (
+    MeasurementData,
+    SaltykovResult,
+    TwoStepResult,
+    _coerce_to_measurement,
+)
 
 _SALTYKOV_N_BINS_MIN = 3
 _SALTYKOV_N_BINS_MAX = 25
@@ -18,9 +23,11 @@ def ecd_from_area(data: MeasurementData) -> MeasurementData:
 
     Parameters
     ----------
-    data : MeasurementData
+    data : MeasurementData, pd.DataFrame, or pd.Series
         Measured grain or precipitate areas.  The ``unit`` string should be a
         length-squared unit (e.g. ``"µm²"``), though this is not enforced.
+        A single-column :class:`~pandas.DataFrame` from :func:`stamp.io.load`
+        is accepted directly.
 
     Returns
     -------
@@ -33,6 +40,7 @@ def ecd_from_area(data: MeasurementData) -> MeasurementData:
     -----
     Formula: ECD = 2 × √(area / π)
     """
+    data = _coerce_to_measurement(data)
     ecds = 2.0 * np.sqrt(data.values / np.pi)
     new_unit = data.unit.rstrip("²") if data.unit.endswith("²") else data.unit
     return MeasurementData(values=ecds, unit=new_unit, label="ECD")
@@ -44,8 +52,10 @@ def linear_intercept_correction(data: MeasurementData) -> MeasurementData:
 
     Parameters
     ----------
-    data : MeasurementData
-        Linear intercept chord lengths.
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        Linear intercept chord lengths.  A single-column
+        :class:`~pandas.DataFrame` from :func:`stamp.io.load` is accepted
+        directly.
 
     Returns
     -------
@@ -57,6 +67,7 @@ def linear_intercept_correction(data: MeasurementData) -> MeasurementData:
     Formula: D = (4 / π) × L, applied element-wise.
     The correction factor 4/π ≈ 1.273 assumes equiaxed grains.
     """
+    data = _coerce_to_measurement(data)
     corrected = data.values * (4.0 / np.pi)
     return MeasurementData(
         values=corrected,
@@ -75,8 +86,10 @@ def saltykov(
 
     Parameters
     ----------
-    data : MeasurementData
-        2-D circle diameters (e.g. from :func:`ecd_from_area`).
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        2-D circle diameters (e.g. from :func:`ecd_from_area`).  A
+        single-column :class:`~pandas.DataFrame` from :func:`stamp.io.load`
+        is accepted directly.
     n_bins : int, optional
         Number of equal-width bins; must be in [3, 25].  Default 10.
     left_edge : float or ``"min"``, optional
@@ -105,6 +118,7 @@ def saltykov(
     Saltykov (1967); Wicksell (1925); Sahagian & Proussevitch (1998);
     Higgins (2000).
     """
+    data = _coerce_to_measurement(data)
     if not (_SALTYKOV_N_BINS_MIN <= n_bins <= _SALTYKOV_N_BINS_MAX):
         raise ValueError(
             f"n_bins must be between {_SALTYKOV_N_BINS_MIN} and "
@@ -210,8 +224,9 @@ def two_step(
 
     Parameters
     ----------
-    data : MeasurementData
-        2-D circle diameters.
+    data : MeasurementData, pd.DataFrame, or pd.Series
+        2-D circle diameters.  A single-column :class:`~pandas.DataFrame`
+        from :func:`stamp.io.load` is accepted directly.
     bin_range : tuple of int, optional
         Inclusive ``(min, max)`` range of bin counts to test.  Default
         ``(10, 20)``.
@@ -231,6 +246,7 @@ def two_step(
     ----------
     Lopez-Sanchez & Llana-Funez (2016) *Solid Earth* 7, 1197–1212.
     """
+    data = _coerce_to_measurement(data)
     lo, hi = bin_range
     if lo >= hi:
         raise ValueError(f"bin_range min must be less than max, got {bin_range}.")

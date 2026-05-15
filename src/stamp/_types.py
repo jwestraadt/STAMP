@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 @dataclass
@@ -312,3 +316,42 @@ class DescribeResult:
     percentiles: dict = field(default_factory=dict)
     unit: str = ""
     label: str = ""
+
+
+def _coerce_to_measurement(
+    data: MeasurementData | pd.DataFrame | pd.Series,
+) -> MeasurementData:
+    """Accept a single-column DataFrame or labelled Series; return MeasurementData.
+
+    Allows all public stats / stereo / plot functions to consume the DataFrame
+    returned by :func:`stamp.io.load` directly, without the caller needing to
+    unwrap it manually.  A :class:`MeasurementData` is passed through unchanged.
+    """
+    if isinstance(data, MeasurementData):
+        return data
+    import pandas as _pd  # lazy import — pandas is a required dep but _types stays lean
+
+    if isinstance(data, _pd.DataFrame):
+        if data.shape[1] != 1:
+            raise ValueError(
+                f"DataFrame must have exactly one column, got {data.shape[1]}."
+            )
+        col = data.iloc[:, 0]
+        return MeasurementData(
+            values=col.to_numpy(dtype=np.float64),
+            unit=data.attrs.get("unit", ""),
+            label=data.attrs.get(
+                "label", str(col.name) if col.name is not None else "Feature"
+            ),
+        )
+    if isinstance(data, _pd.Series):
+        return MeasurementData(
+            values=data.to_numpy(dtype=np.float64),
+            unit=data.attrs.get("unit", ""),
+            label=data.attrs.get(
+                "label", str(data.name) if data.name is not None else "Feature"
+            ),
+        )
+    raise TypeError(
+        f"Expected MeasurementData, DataFrame, or Series; got {type(data).__name__}."
+    )
