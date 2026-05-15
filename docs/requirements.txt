@@ -3,3 +3,4 @@ pydata-sphinx-theme>=0.15
 sphinx-autoapi>=3.0
 myst-parser>=2.0
 nbsphinx>=0.9
+pypandoc-binary
