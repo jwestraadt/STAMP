@@ -19,10 +19,49 @@ confidence intervals, and generate publication-ready figures.
 
 ## Features
 
-- **I/O** — load CSV, Excel, TXT/TSV files into a validated `MeasurementData` container; non-finite and non-positive values are dropped with a warning
+- **I/O** — load CSV, Excel, TXT/TSV files into a `pd.DataFrame`; import MIPAR feature-measurement exports directly with `load_mipar_features()`; non-finite and non-positive values are dropped with a warning
 - **Stereology** — ECD conversion, Fullman (1953) linear intercept correction, Saltykov/Wicksell (1925/1967) matrix unfolding, Two-step lognormal fitting (Lopez-Sanchez & Llana-Funez 2016)
 - **Statistics** — arithmetic mean (ASTM E112, GCI, mCox), geometric mean (CLT, Bayesian), median (Hollander–Wolfe CI), KDE mode, MLE distribution fitting with KS goodness-of-fit
 - **Plots** — histogram + KDE, Saltykov dual-panel (frequency + volume CDF), two-step fit with ±3σ band, PDF/CDF profile, Q-Q plot; all figures return a `matplotlib.Figure` and optionally save to file
+- **Pipeline** — `run()` for per-FOV CSV files, `run_batch()` for single-file batch format, `run_mipar()` for MIPAR exports; all produce a `PipelineResult` with per-state statistics, a summary DataFrame, and optional auto-saved box plot and CSV
+
+## Quick start
+
+```python
+from stamp.io import load
+from stamp import stereo, stats, plot
+
+# Load measurements from any CSV/Excel/TXT file
+df = load("grain_sizes.csv", column="ECD_um", unit="µm")
+
+# Apply stereological corrections
+ecds = stereo.ecd_from_area(df)
+sal = stereo.saltykov(ecds)
+
+# Descriptive statistics
+desc = stats.describe(df)
+print(f"Geometric mean: {desc.gmean.mean:.2f} ± {desc.gmean.std:.2f} {df.attrs['unit']}")
+
+# Publication-ready plot
+fig = plot.distribution(df)
+fig.savefig("grain_size_distribution.png", dpi=300)
+```
+
+```python
+from stamp.pipeline import run_mipar
+
+# Multi-state pipeline from MIPAR feature-measurement exports
+result = run_mipar(
+    files={
+        "As-received": "state_A_FeatureMeas.csv",
+        "Annealed":    "state_B_FeatureMeas.csv",
+    },
+    measurement="Equivalent Diameter (um)",
+    unit="µm",
+    output_dir="results/",
+)
+print(result.summary)
+```
 
 ## Installation
 
