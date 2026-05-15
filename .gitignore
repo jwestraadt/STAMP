@@ -65,6 +65,9 @@ desktop.ini
 *.swp
 *.swo
 
+# Playwright MCP
+.playwright-mcp/
+
 # Environment variables
 .env
 .env.*
