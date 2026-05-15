@@ -1,11 +1,9 @@
 # Examples
 
-The notebooks below are located in the `notebooks/` directory of the repository.
-Run them interactively with `uv run jupyter lab`, or follow the worked examples here.
+The notebooks below walk through the core STAMP workflow and validate the
+stereological corrections. Run them interactively with `uv run jupyter lab`.
 
-```{toctree}
-:maxdepth: 1
-
-examples/quickstart
-examples/simulation
+```{nbgallery}
+notebooks/01_quickstart
+notebooks/02_simulation_validation
 ```

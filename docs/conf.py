@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 
 sys.path.insert(0, os.path.abspath("../src"))
@@ -14,6 +15,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "autoapi.extension",
     "myst_parser",
+    "nbsphinx",
 ]
 
 autoapi_dirs = ["../src"]
@@ -40,4 +42,21 @@ source_suffix = {
     ".md": "markdown",
 }
 
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "notebooks/.ipynb_checkpoints"]
+
+# Never re-execute notebooks during the docs build; use stored cell outputs.
+nbsphinx_execute = "never"
+
+
+def _sync_notebooks(app):
+    """Copy repo-root notebooks/ into docs/notebooks/ so nbsphinx can find them."""
+    confdir = os.path.dirname(os.path.abspath(__file__))
+    src = os.path.normpath(os.path.join(confdir, "..", "notebooks"))
+    dst = os.path.join(confdir, "notebooks")
+    if os.path.exists(dst):
+        shutil.rmtree(dst)
+    shutil.copytree(src, dst)
+
+
+def setup(app):
+    app.connect("builder-inited", lambda app: _sync_notebooks(app))

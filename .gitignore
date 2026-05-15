@@ -47,6 +47,9 @@ docs/autoapi/
 .ipynb_checkpoints/
 *.ipynb~
 
+# Auto-copied into docs/ at build time — not tracked in git
+docs/notebooks/
+
 # Scratch / test output files (not part of the dataset)
 notebooks/*.csv
 /*.png

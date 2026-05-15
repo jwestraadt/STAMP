@@ -119,8 +119,10 @@ uv run pytest --cov=stamp --cov-report=html   # HTML coverage report
 - For narrative docs (tutorials, how-tos) add `.md` files in `docs/` and reference them in `docs/index.rst`.
 - **Every new notebook must be documented in `docs/examples.md`** — add a section with a short description and representative code snippets. Then verify the docs build cleanly.
 
+**Prerequisite:** [Pandoc](https://pandoc.org/installing.html) must be installed system-wide (used by nbsphinx to convert notebook Markdown cells).
+
 ```bash
-uv run sphinx-build docs docs/_build/html -W -E   # -W = warnings as errors, -E = always rebuild from scratch
+uv run sphinx-build -W -E -b html docs docs/_build/html   # -W = warnings as errors, -E = always rebuild from scratch
 ```
 
 ---
