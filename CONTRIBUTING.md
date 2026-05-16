@@ -10,9 +10,12 @@ Thank you for considering contributing to STAMP!
    git clone https://github.com/<your-username>/STAMP.git
    cd STAMP
    ```
-3. Create a branch for your changes:
+3. Create a branch for your changes, using the Conventional Commits type as prefix:
    ```bash
-   git checkout -b feature/your-feature-name
+   git checkout -b feat/your-feature-name    # new feature
+   git checkout -b fix/module-short-desc     # bug fix
+   git checkout -b docs/short-desc           # docs or notebooks
+   git checkout -b chore/short-desc          # refactor, CI, maintenance
    ```
 
 ## Development Setup
@@ -78,7 +81,7 @@ Then open `docs/_build/html/index.html` in your browser.
 ## Code Style
 
 - Code is formatted with [Ruff](https://docs.astral.sh/ruff/) (88-char lines)
-- Use NumPy-style or Google-style docstrings
+- Use NumPy-style docstrings (mandatory — see CLAUDE.md for the full template)
 - Type hints are encouraged
 
 ## Code of Conduct
