@@ -154,6 +154,17 @@ Private functions (prefixed `_`) do not require full docstrings but should have 
 - Use `pytest` fixtures and parametrize for multiple inputs.
 - Every public function must have at least one test.
 - Coverage threshold: 60% (raise as the codebase grows).
+- **Use `stamp.simulate.simulate_section()` as the preferred source of synthetic data** in tests and notebooks — it produces a reproducible `SimulationResult` with both `true_diameters` and `apparent_diameters` as `MeasurementData`, with a known ground truth for validating stereological corrections. Always pass `seed=` for reproducibility in tests:
+
+```python
+from stamp.simulate import simulate_section
+
+sim = simulate_section(mu=30.0, sigma=0.3, n_intersections=300, seed=42)
+# sim.apparent_diameters  → MeasurementData (2-D section measurements)
+# sim.true_diameters      → MeasurementData (3-D ground truth)
+```
+
+Do not generate raw `np.random` arrays in tests when `simulate_section` covers the case.
 
 ```bash
 uv run pytest                        # run all tests
@@ -194,6 +205,19 @@ uv run python -m ipykernel install --user --name stamp-dev --display-name "STAMP
 ```
 
 All notebooks must use the `stamp-dev` kernel so that CI execution picks up the correct environment.
+
+### Synthetic data in notebooks
+
+Prefer `stamp.simulate.simulate_section()` over bundling external data files when the notebook's purpose is to demonstrate or validate a method.  It produces a fully reproducible dataset with a known ground truth and requires no data file at all:
+
+```python
+from stamp.simulate import simulate_section
+
+sim = simulate_section(mu=45.0, sigma=0.35, n_intersections=500, seed=0)
+ecds = sim.apparent_diameters   # pass directly to stamp.stereo / stamp.stats / stamp.plot
+```
+
+Only use a file in `notebooks/data/` when the notebook demonstrates loading real experimental data.
 
 ### Data files
 
