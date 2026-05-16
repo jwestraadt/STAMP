@@ -33,10 +33,16 @@ confidence intervals, and generate publication-ready figures.
 pip install nanoshot-stamp
 ```
 
+To also install JupyterLab for running the example notebooks:
+
+```bash
+pip install "nanoshot-stamp[notebooks]"
+```
+
 Or with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv add nanoshot-stamp
+uv add "nanoshot-stamp[notebooks]"
 ```
 
 ## Documentation
