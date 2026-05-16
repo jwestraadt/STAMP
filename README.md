@@ -4,7 +4,7 @@
 # STAMP
 
 [![CI](https://github.com/jwestraadt/STAMP/actions/workflows/ci.yml/badge.svg)](https://github.com/jwestraadt/STAMP/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/pypi/v/nanoshot-stamp)](https://pypi.org/project/nanoshot-stamp/)
+[![PyPI version](https://img.shields.io/pypi/v/nanoshot-stamp?include_prereleases)](https://pypi.org/project/nanoshot-stamp/)
 [![Python versions](https://img.shields.io/pypi/pyversions/nanoshot-stamp)](https://pypi.org/project/nanoshot-stamp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![codecov](https://codecov.io/gh/jwestraadt/STAMP/branch/main/graph/badge.svg)](https://codecov.io/gh/jwestraadt/STAMP)
