@@ -54,6 +54,35 @@ Each commit should be a single logical unit that passes the pre-commit checklist
 
 ---
 
+## Spec-driven development
+
+Write a spec *before* any code.  The spec is the single source of truth that drives implementation, tests, docs, and the PR description, and gives Claude Code an unambiguous brief to work from.
+
+### Workflow
+
+1. **Write the spec** — create `specs/<module>-<feature>.md` from the template at `specs/_template.md`.
+2. **Review and approve** — human reads and signs off before any code is written.  This is the cheapest moment to catch wrong API design or a missing parameter.
+3. **Enter Plan mode** — hand the approved spec to Claude in Plan mode.  Claude maps each behavioral requirement to specific files, identifies impacts on `_types.py` / `__init__.py`, and flags any ambiguity before implementation starts.
+4. **Implement against the spec** — code satisfies the spec's behavioral requirements exactly.  If an implementation decision is not covered by the spec, surface it to the human rather than deciding unilaterally.
+5. **Derive tests from the spec** — each numbered behavioral requirement maps to one or more `pytest` test cases, named after the requirement.
+6. **Validate against the spec** — after implementation, tick every behavioral requirement: correct return type, all validation rules enforced, docstring matches spec description.
+7. **Notebook and docs from the spec** — the notebook section outline was already written in the spec; the CHANGELOG bullet is the spec's one-line summary.
+8. **Use the spec as the PR description** — paste the spec's summary, API block, and behavioral requirements checklist directly into the PR body.
+
+### What belongs in a spec
+
+See `specs/_template.md` for the full template.  At minimum a spec must contain:
+
+- Public function signature with all parameter types and the return type
+- Scientific / algorithmic basis (one paragraph + references)
+- Numbered behavioral requirements (testable, observable statements)
+- Parameter validation rules (what raises `ValueError`, what warns)
+- A short usage example (3–5 lines)
+
+A spec does **not** contain implementation details — those belong in the code.
+
+---
+
 ## Before every commit — mandatory checklist
 
 Run these in order and fix any failures before committing:
