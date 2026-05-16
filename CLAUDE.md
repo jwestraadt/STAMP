@@ -69,6 +69,16 @@ Write a spec *before* any code.  The spec is the single source of truth that dri
 7. **Notebook and docs from the spec** — the notebook section outline was already written in the spec; the CHANGELOG bullet is the spec's one-line summary.
 8. **Use the spec as the PR description** — paste the spec's summary, API block, and behavioral requirements checklist directly into the PR body.
 
+### Writing a spec interactively
+
+Use the `/spec` slash command to have Claude interview you and produce a completed spec file.  Claude will ask one question at a time — what the feature does, which module it belongs to, inputs, outputs, algorithm, parameters, validation rules, edge cases, and whether a notebook is needed — then draft the full spec for your review before writing any file.
+
+```
+/spec
+```
+
+Alternatively, say *"help me write a spec for X"* and Claude will run the same interview inline.  Either way, no code is written until the spec is approved.
+
 ### What belongs in a spec
 
 See `specs/_template.md` for the full template.  At minimum a spec must contain:
