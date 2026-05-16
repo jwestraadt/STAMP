@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "stamp"
+name = "nanoshot-stamp"
 dynamic = ["version"]
 description = "Stereological Tools for Analysis of Microstructural Parameters"
 readme = "README.md"
