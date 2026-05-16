@@ -48,6 +48,19 @@ def test_distribution_returns_figure():
     assert isinstance(fig, plt.Figure)
 
 
+def test_distribution_density_unit_uses_mathtext_inverse():
+    fig = distribution(_mdata())
+    ylabel = fig.axes[0].get_ylabel()
+    assert "$^{-1}$" in ylabel
+    assert "\u207b" not in ylabel
+
+    fig_log = distribution(_mdata(), log_panel=True)
+    for ax in fig_log.axes:
+        ylabel = ax.get_ylabel()
+        assert "$^{-1}$" in ylabel
+        assert "\u207b" not in ylabel
+
+
 def test_distribution_hist_only():
     fig = distribution(_mdata(), plot=("hist",))
     assert isinstance(fig, plt.Figure)
@@ -79,6 +92,21 @@ def test_distribution_invalid_plot_element():
 def test_distribution_invalid_avg_element():
     with pytest.raises(ValueError, match="avg"):
         distribution(_mdata(), avg=("unknown",))
+
+
+def test_distribution_log_panel_two_axes():
+    fig = distribution(_mdata(), log_panel=True)
+    assert isinstance(fig, plt.Figure)
+    assert len(fig.axes) == 2
+
+
+def test_distribution_bw_mode():
+    from stamp.export import JournalStyle, journal_style
+
+    data = _mdata()
+    with journal_style(JournalStyle(preset="nature")):
+        fig = distribution(data, avg=("amean",))
+    assert isinstance(fig, plt.Figure)
 
 
 # ---------------------------------------------------------------------------

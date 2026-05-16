@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,6 +21,9 @@ from stamp._types import (
     _coerce_to_measurement,
 )
 
+if TYPE_CHECKING:
+    from stamp.export import JournalStyle
+
 # ---------------------------------------------------------------------------
 # Colour palette (GrainSizeTools-compatible)
 # ---------------------------------------------------------------------------
@@ -28,6 +33,24 @@ _C_LINE = "#2F4858"
 _C_GMEAN = "#fec44f"
 _C_FILL = "#80419d"
 _C_TEXT = "#252525"
+
+# B&W linestyle cycle for average markers (used when bw mode is active)
+_BW_AVG_STYLES: dict[str, tuple[str, str]] = {
+    "amean": ("black", "-"),
+    "gmean": ("black", "--"),
+    "median": ("black", ":"),
+    "mode": ("black", "-."),
+}
+
+
+def _bw_mode() -> bool:
+    try:
+        from stamp.export import _active_bw  # noqa: PLC0415
+
+        return _active_bw()
+    except ImportError:
+        return False
+
 
 _VALID_PLOT = {"hist", "kde"}
 _VALID_AVG = {"amean", "gmean", "median", "mode"}
@@ -51,6 +74,81 @@ def _save(fig: Figure, output_path: str | Path | None, dpi: int) -> None:
         fig.savefig(output_path, dpi=dpi, bbox_inches="tight")
 
 
+def _draw_distribution_ax(
+    ax: plt.Axes,
+    v: np.ndarray,
+    *,
+    bins: int | str,
+    bw_method: str | float,
+    plot: tuple[str, ...],
+    fit: FitResult | None,
+    avg: tuple[str, ...],
+    bw: bool,
+    unit: str,
+    bandwidth: str | float,
+) -> np.ndarray:
+    """Draw histogram, KDE, fit, and average lines onto *ax*; return bin edges."""
+    bin_edges: np.ndarray = np.array([])
+
+    if "hist" in plot:
+        counts, bin_edges, _ = ax.hist(
+            v,
+            bins=bins,
+            density=True,
+            **(
+                {"color": "white", "edgecolor": "black", "alpha": 1.0}
+                if bw
+                else {"color": _C_HIST, "alpha": 0.7}
+            ),
+            label="Histogram",
+        )
+
+    if "kde" in plot:
+        kde = gaussian_kde(v, bw_method=bw_method)
+        xgrid = np.linspace(v.min(), v.max(), 512)
+        density = kde(xgrid)
+        c_line = "black" if bw else _C_LINE
+        c_fill = "0.75" if bw else _C_FILL
+        fill_alpha = 0.35 if bw else 0.2
+        ax.plot(xgrid, density, color=c_line, lw=1.5, label="KDE")
+        ax.fill_between(xgrid, density, alpha=fill_alpha, color=c_fill)
+
+    if fit is not None:
+        xgrid = np.linspace(v.min(), v.max(), 512)
+        pdf = (
+            scipy_stats.norm.pdf(xgrid, **fit.params)
+            if fit.distribution == "normal"
+            else scipy_stats.lognorm.pdf(xgrid, **fit.params)
+        )
+        ax.plot(
+            xgrid,
+            pdf,
+            color="black" if bw else _C_GMEAN,
+            lw=1.5,
+            ls="-." if bw else "--",
+            label=f"Fit ({fit.distribution})",
+        )
+
+    avg_vals = _compute_avg(v, avg, bandwidth)
+    if bw:
+        for key, val in avg_vals.items():
+            c, ls = _BW_AVG_STYLES[key]
+            ax.axvline(val, color=c, lw=1.2, ls=ls, label=key)
+    else:
+        colours = {
+            "amean": _C_LINE,
+            "gmean": _C_GMEAN,
+            "median": "#e07b39",
+            "mode": "#5c9e6e",
+        }
+        for key, val in avg_vals.items():
+            ax.axvline(val, color=colours[key], lw=1.2, ls="--", label=key)
+
+    ax.set_xlim(0, v.max() * 1.05)
+    ax.set_ylabel(f"Probability density ({unit}$^{{-1}}$)", color=_C_TEXT)
+    return bin_edges
+
+
 def distribution(
     data: MeasurementData,
     plot: tuple[str, ...] = ("hist", "kde"),
@@ -61,6 +159,8 @@ def distribution(
     output_path: str | Path | None = None,
     dpi: int = 300,
     figsize: tuple[float, float] = (6.4, 4.8),
+    log_panel: bool = False,
+    style: JournalStyle | None = None,
     **kwargs,
 ) -> Figure:
     """Histogram and/or KDE of the 2-D measurement distribution.
@@ -79,13 +179,21 @@ def distribution(
     bandwidth : str or float, optional
         KDE bandwidth method.  Default ``"silverman"``.
     fit : FitResult, optional
-        If provided, overlays the fitted PDF.
+        If provided, overlays the fitted PDF on the linear panel.
     output_path : str or Path, optional
         Save path; format inferred from extension.
     dpi : int, optional
         Output resolution.  Default 300.
     figsize : tuple of float, optional
         Figure size in inches.  Default ``(6.4, 4.8)``.
+    log_panel : bool, optional
+        If ``True``, adds a second panel with a log x-axis.  The KDE on the
+        log panel is Jacobian-corrected (fitted on ``log(x)``, divided by *x*)
+        so it integrates to 1 over the displayed range.  Bin edges are
+        log-spaced.  Panel labels **a** / **b** are added.  Default ``False``.
+    style : JournalStyle, optional
+        When provided, wraps the figure in :func:`stamp.export.journal_style`
+        so typography and rcParams are applied automatically.  Default ``None``.
 
     Returns
     -------
@@ -107,61 +215,112 @@ def distribution(
 
     data = _coerce_to_measurement(data)
     v = data.values
-    fig, ax = plt.subplots(figsize=figsize)
+    bw_method = bandwidth if isinstance(bandwidth, str) else float(bandwidth)
 
-    if "hist" in plot:
-        ax.hist(
+    from stamp.export import journal_style, panel_label  # noqa: PLC0415
+
+    ctx = journal_style(style) if style is not None else nullcontext()
+    with ctx:
+        bw = _bw_mode()
+
+        if log_panel:
+            fig, (ax, ax_log) = plt.subplots(1, 2, figsize=figsize)
+        else:
+            fig, ax = plt.subplots(figsize=figsize)
+
+        # ── Linear panel ────────────────────────────────────────────────────────
+        bin_edges = _draw_distribution_ax(
+            ax,
             v,
             bins=bins,
-            density=True,
-            color=_C_HIST,
-            edgecolor=_C_EDGE,
-            alpha=0.7,
-            label="Data",
+            bw_method=bw_method,
+            plot=plot,
+            fit=fit,
+            avg=avg,
+            bw=bw,
+            unit=data.unit,
+            bandwidth=bandwidth,
         )
+        ax.set_xlabel(f"{data.label} ({data.unit})", color=_C_TEXT)
 
-    if "kde" in plot:
-        bw = bandwidth if isinstance(bandwidth, str) else float(bandwidth)
-        kde = gaussian_kde(v, bw_method=bw)
-        xgrid = np.linspace(v.min(), v.max(), 512)
-        density = kde(xgrid)
-        ax.plot(xgrid, density, color=_C_LINE, lw=1.5, label="KDE")
-        ax.fill_between(xgrid, density, alpha=0.2, color=_C_FILL)
-
-    if fit is not None:
-        xgrid = np.linspace(v.min(), v.max(), 512)
-        if fit.distribution == "normal":
-            pdf = scipy_stats.norm.pdf(xgrid, **fit.params)
+        if log_panel:
+            # Replace legend with a corner annotation — caption carries the labels
+            tick_fs = plt.rcParams.get("xtick.labelsize", 8)
+            ax.text(
+                0.97,
+                0.95,
+                f"n = {len(v)}",
+                transform=ax.transAxes,
+                fontsize=tick_fs,
+                ha="right",
+                va="top",
+                color=_C_TEXT,
+            )
+            panel_label(ax, "a", style)
         else:
-            pdf = scipy_stats.lognorm.pdf(xgrid, **fit.params)
-        ax.plot(
-            xgrid,
-            pdf,
-            color=_C_GMEAN,
-            lw=1.5,
-            ls="--",
-            label=f"Fit ({fit.distribution})",
-        )
+            ax.legend(fontsize=10, frameon=False)
 
-    # Annotate averages as vertical lines
-    avg_vals = _compute_avg(v, avg, bandwidth)
-    colours = {
-        "amean": _C_LINE,
-        "gmean": _C_GMEAN,
-        "median": "#e07b39",
-        "mode": "#5c9e6e",
-    }
-    for key, val in avg_vals.items():
-        ax.axvline(val, color=colours[key], lw=1.2, ls="--", label=key)
+        _apply_style(ax)
 
-    ax.set_xlabel(f"{data.label} ({data.unit})", color=_C_TEXT)
-    ax.set_ylabel("Density", color=_C_TEXT)
-    ax.set_title(data.label, color=_C_TEXT)
-    ax.legend(fontsize=10)
-    _apply_style(ax)
-    fig.tight_layout()
-    _save(fig, output_path, dpi)
-    return fig
+        # ── Log panel ────────────────────────────────────────────────────────────
+        if log_panel:
+            n_bins = max(len(bin_edges) - 1, 10)
+            log_edges = np.logspace(
+                np.log10(max(v.min(), 1e-6)),
+                np.log10(v.max()),
+                n_bins + 1,
+            )
+
+            if "hist" in plot:
+                ax_log.hist(
+                    v,
+                    bins=log_edges,
+                    density=True,
+                    **(
+                        {"color": "white", "edgecolor": "black", "alpha": 1.0}
+                        if bw
+                        else {"color": _C_HIST, "alpha": 0.7}
+                    ),
+                )
+
+            if "kde" in plot:
+                # Jacobian correction: fit KDE on log(x), then density(x) = kde(log x)/x
+                log_v = np.log(v)
+                kde_log = gaussian_kde(log_v, bw_method=bw_method)
+                x_log = np.logspace(np.log10(v.min()), np.log10(v.max()), 512)
+                c_line = "black" if bw else _C_LINE
+                c_fill = "0.75" if bw else _C_FILL
+                fill_alpha = 0.35 if bw else 0.2
+                density_log = kde_log(np.log(x_log)) / x_log
+                ax_log.plot(x_log, density_log, color=c_line, lw=1.5)
+                ax_log.fill_between(x_log, density_log, alpha=fill_alpha, color=c_fill)
+
+            avg_vals = _compute_avg(v, avg, bandwidth)
+            avg_colours = (
+                {k: "black" for k in avg_vals}
+                if bw
+                else {
+                    "amean": _C_LINE,
+                    "gmean": _C_GMEAN,
+                    "median": "#e07b39",
+                    "mode": "#5c9e6e",
+                }
+            )
+            for key, val in avg_vals.items():
+                ls = _BW_AVG_STYLES[key][1] if bw else "--"
+                ax_log.axvline(val, color=avg_colours[key], lw=1.2, ls=ls)
+
+            ax_log.set_xscale("log")
+            ax_log.set_xlabel(f"{data.label} ({data.unit})", color=_C_TEXT)
+            ax_log.set_ylabel(
+                f"Probability density ({data.unit}$^{{-1}}$)", color=_C_TEXT
+            )
+            panel_label(ax_log, "b", style)
+            _apply_style(ax_log)
+
+        fig.tight_layout(w_pad=2.0 if log_panel else None)
+        _save(fig, output_path, dpi)
+        return fig
 
 
 def saltykov_plot(
