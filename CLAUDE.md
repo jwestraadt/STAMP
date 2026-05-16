@@ -150,12 +150,106 @@ Example entry:
 
 ---
 
+## Versioning
+
+STAMP uses [Semantic Versioning](https://semver.org/): **`MAJOR.MINOR.PATCH`**
+
+| Part | Bump when |
+|---|---|
+| **MAJOR** | Backwards-incompatible API change — existing user code breaks |
+| **MINOR** | New backwards-compatible functionality added |
+| **PATCH** | Bug fix with no API change; internal refactor, docs, CI |
+
+STAMP-specific mapping:
+
+| Change | Bump |
+|---|---|
+| New public function added | MINOR |
+| Bug fix to existing function | PATCH |
+| Public function renamed, removed, or signature changed in breaking way | MAJOR |
+| Internal refactor, docs, CI | PATCH |
+
+Conventional Commits map directly: `feat:` → MINOR, `fix:` → PATCH, `feat!:` / `BREAKING CHANGE:` → MAJOR.
+
+Start at `0.1.0`. The `0.x` range allows breaking changes without a MAJOR bump. Release `1.0.0` when the API is stable.
+
+---
+
 ## Release process
 
-1. Update `CHANGELOG.md`: rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`, add new `[Unreleased]` section.
-2. Commit: `chore(release): bump version to vX.Y.Z`
-3. Tag: `git tag vX.Y.Z`
-4. Push tag: `git push origin vX.Y.Z` — this triggers the PyPI publish workflow automatically.
+Run all steps in order. **Do not tag until the PR is merged.**
+
+### 1. Code quality
+```bash
+uv run ruff format .
+uv run ruff check . --fix
+uv run pytest --cov=stamp --cov-report=term-missing
+```
+All tests must pass, coverage must be ≥ 60%.
+
+### 2. Check public API is complete
+- Every public function has a NumPy docstring and at least one test.
+- Any new module is importable.
+
+```bash
+uv run python -c "import stamp; print(dir(stamp))"
+```
+
+### 3. Run all notebooks end-to-end
+```bash
+uv run jupyter nbconvert --to notebook --execute notebooks/*.ipynb --inplace
+```
+Check outputs look correct — no empty plots, no NaN results, no unexpected warnings.
+
+### 4. Build and verify docs
+```bash
+uv run sphinx-build -W -E -b html docs docs/_build/html
+```
+Fix any warnings before continuing. Open `docs/_build/html/index.html` and verify:
+- sphinx-autoapi picked up all new modules
+- `docs/examples.md` has a section for every notebook
+
+### 5. Verify the build artifact
+```bash
+uv build
+tar -tzf dist/nanoshot_stamp-*.tar.gz
+```
+Confirm no dev files (`CLAUDE.md`, `.github/`, `notebooks/`) appear in the sdist.
+
+### 6. Update CHANGELOG
+- Rename `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`
+- Add a fresh `[Unreleased]` section above it
+- Entries must describe what users can *do*, not implementation details
+
+### 7. Commit, PR, merge, THEN tag
+
+**Never tag before the PR is merged** — tagging on a branch puts the version on a branch commit, not `main`, requiring extra cleanup PRs.
+
+All release prep (CHANGELOG, last fixes) goes on the feature branch in the same PR.
+
+```bash
+# On the feature branch — commit everything and push
+git add .
+git commit -m "chore(release): bump version to vX.Y.Z"
+git push
+# → open PR, wait for CI, merge on GitHub
+
+# After PR is merged:
+git checkout main
+git pull
+
+# Tag the merge commit on main, push tag only
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+Monitor the publish workflow at **Actions → Publish to PyPI**.
+
+### 8. Verify the PyPI release
+```bash
+pip install nanoshot-stamp==X.Y.Z
+python -c "import stamp; print(stamp.__version__)"
+```
+Run a quick smoke test of the main API paths to confirm the installed package works.
 
 ---
 
