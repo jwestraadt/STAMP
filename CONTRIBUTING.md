@@ -10,10 +10,23 @@ Thank you for considering contributing to STAMP!
    git clone https://github.com/<your-username>/STAMP.git
    cd STAMP
    ```
-3. Create a branch for your changes:
+3. Create a branch for your changes, using the Conventional Commits type as prefix:
    ```bash
-   git checkout -b feature/your-feature-name
+   git checkout -b feat/your-feature-name    # new feature
+   git checkout -b fix/module-short-desc     # bug fix
+   git checkout -b docs/short-desc           # docs or notebooks
+   git checkout -b chore/short-desc          # refactor, CI, maintenance
    ```
+
+## Spec-driven development
+
+All non-trivial features start with a written spec, approved before any code is written.
+
+1. Copy `specs/_template.md` to `specs/<module>-<feature>.md` and fill it in — or run `/spec` in Claude Code to be interviewed through the questions one at a time.
+2. Get the spec approved (comment on your issue or open a draft PR with just the spec file).
+3. Once approved, implementation, tests, notebook, and docs all follow from the spec. The spec becomes the PR description.
+
+See `specs/_template.md` for the full template and `CLAUDE.md` for the detailed workflow.
 
 ## Development Setup
 
@@ -72,13 +85,13 @@ Then open `docs/_build/html/index.html` in your browser.
 1. Ensure all tests pass: `uv run pytest`
 2. Ensure linting passes: `uv run ruff check . && uv run ruff format --check .`
 3. Update `CHANGELOG.md` under `[Unreleased]`
-4. Push your branch and open a pull request against `main`
-5. Describe what your PR does and reference any related issues
+4. Push your branch and open a pull request against `main` using **squash merge**
+5. Use the approved spec as the PR description (summary, API block, behavioral requirements checklist)
 
 ## Code Style
 
 - Code is formatted with [Ruff](https://docs.astral.sh/ruff/) (88-char lines)
-- Use NumPy-style or Google-style docstrings
+- Use NumPy-style docstrings (mandatory — see CLAUDE.md for the full template)
 - Type hints are encouraged
 
 ## Code of Conduct

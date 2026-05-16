@@ -17,6 +17,82 @@ All commands below are run via `uv run <tool>` so they use the project venv.
 
 ---
 
+## Agentic coding guidance
+
+### Plan mode — use before large changes
+
+Before starting any task that touches more than one module, renames or removes public API, or adds a new module, enter Plan mode first.  Outline the approach, identify affected files, and confirm the design before writing any code.  This avoids costly mid-implementation pivots.
+
+Triggers that require a plan:
+- New public module (new file under `src/stamp/`)
+- Any change to `_types.py` (affects every module)
+- Refactor that touches ≥ 3 files
+- Breaking API change (parameter rename, return-type change, removal)
+
+Single-function additions to an existing module do not need a formal plan — proceed directly to implementation.
+
+### Worktrees — use for isolated feature work
+
+Use a git worktree when working on a feature branch so the main checkout stays clean and runnable.  This is especially important when a feature takes multiple sessions or involves executing notebooks mid-development.
+
+```bash
+# Create a worktree for the feature branch
+git worktree add ../stamp-feat-<name> -b feat/<module>-<name>
+
+# Work in the worktree; main checkout is untouched
+cd ../stamp-feat-<name>
+
+# Remove when the PR is merged
+git worktree remove ../stamp-feat-<name>
+```
+
+Within Claude Code, use the `EnterWorktree` tool to switch into a worktree-isolated context for the session.
+
+### Commit atomicity
+
+Each commit should be a single logical unit that passes the pre-commit checklist on its own.  Do not batch unrelated changes into one commit.  If a notebook and a new function are both part of the feature, commit them together; if a docstring fix is unrelated, it gets its own commit.
+
+---
+
+## Spec-driven development
+
+Write a spec *before* any code.  The spec is the single source of truth that drives implementation, tests, docs, and the PR description, and gives Claude Code an unambiguous brief to work from.
+
+### Workflow
+
+1. **Write the spec** — create `specs/<module>-<feature>.md` from the template at `specs/_template.md`.
+2. **Review and approve** — human reads and signs off before any code is written.  This is the cheapest moment to catch wrong API design or a missing parameter.
+3. **Enter Plan mode** — hand the approved spec to Claude in Plan mode.  Claude maps each behavioral requirement to specific files, identifies impacts on `_types.py` / `__init__.py`, and flags any ambiguity before implementation starts.
+4. **Implement against the spec** — code satisfies the spec's behavioral requirements exactly.  If an implementation decision is not covered by the spec, surface it to the human rather than deciding unilaterally.
+5. **Derive tests from the spec** — each numbered behavioral requirement maps to one or more `pytest` test cases, named after the requirement.
+6. **Validate against the spec** — after implementation, tick every behavioral requirement: correct return type, all validation rules enforced, docstring matches spec description.
+7. **Notebook and docs from the spec** — the notebook section outline was already written in the spec; the CHANGELOG bullet is the spec's one-line summary.
+8. **Use the spec as the PR description** — paste the spec's summary, API block, and behavioral requirements checklist directly into the PR body.
+
+### Writing a spec interactively
+
+Use the `/spec` slash command to have Claude interview you and produce a completed spec file.  Claude will ask one question at a time — what the feature does, which module it belongs to, inputs, outputs, algorithm, parameters, validation rules, edge cases, and whether a notebook is needed — then draft the full spec for your review before writing any file.
+
+```
+/spec
+```
+
+Alternatively, say *"help me write a spec for X"* and Claude will run the same interview inline.  Either way, no code is written until the spec is approved.
+
+### What belongs in a spec
+
+See `specs/_template.md` for the full template.  At minimum a spec must contain:
+
+- Public function signature with all parameter types and the return type
+- Scientific / algorithmic basis (one paragraph + references)
+- Numbered behavioral requirements (testable, observable statements)
+- Parameter validation rules (what raises `ValueError`, what warns)
+- A short usage example (3–5 lines)
+
+A spec does **not** contain implementation details — those belong in the code.
+
+---
+
 ## Before every commit — mandatory checklist
 
 Run these in order and fix any failures before committing:
@@ -49,6 +125,58 @@ Examples:
 - `fix(io): handle missing file extension gracefully`
 - `docs(api): add NumPy docstrings to loader module`
 - `test(core): add edge-case tests for normalisation`
+
+---
+
+## Branches, PRs, and merging
+
+### Branch naming
+
+Mirror the Conventional Commits type:
+
+| Work type | Branch name |
+|---|---|
+| New feature | `feat/<module>-<short-desc>` |
+| Bug fix | `fix/<module>-<short-desc>` |
+| Docs / notebooks | `docs/<short-desc>` |
+| Refactor / CI / chore | `chore/<short-desc>` |
+
+Examples: `feat/stereo-johnson-correction`, `fix/io-xlsx-encoding`, `docs/add-pipeline-notebook`.
+
+### Opening the PR
+
+```bash
+gh pr create --title "feat(<module>): <short summary>" --body "$(cat <<'EOF'
+## Summary
+- <what this adds or fixes — one bullet per logical change>
+
+## Notebooks added
+- `notebooks/NN_<topic>.ipynb` — <one-line description>  (omit section if none)
+
+## Test plan
+- [ ] `uv run ruff format . && uv run ruff check . --fix`
+- [ ] `uv run pytest` — all tests pass, coverage ≥ 60 %
+- [ ] Notebook executes end-to-end without errors
+- [ ] `uv run sphinx-build -W -E -b html docs docs/_build/html` — no warnings
+- [ ] CHANGELOG updated under `[Unreleased]`
+EOF
+)"
+```
+
+Open as a **draft** PR if the branch is still in progress; mark ready for review only when all checklist items are ticked and CI is green.
+
+### Merge strategy
+
+Use **squash merge** on GitHub (`Squash and merge` button).  This keeps `main` history as one commit per feature and preserves the Conventional Commits shape for automated changelogs.  Never use rebase-merge or create-merge-commit for feature work.
+
+### CI failure recovery
+
+When a pushed PR fails CI:
+
+1. Fix the issue locally.
+2. Re-run the full pre-commit checklist (`ruff format`, `ruff check`, `pytest`).
+3. `git push` — do **not** amend or force-push a branch that already has a PR open; just push a new commit.
+4. CI will re-trigger automatically on the new push.
 
 ---
 
@@ -102,6 +230,17 @@ Private functions (prefixed `_`) do not require full docstrings but should have 
 - Use `pytest` fixtures and parametrize for multiple inputs.
 - Every public function must have at least one test.
 - Coverage threshold: 60% (raise as the codebase grows).
+- **Use `stamp.simulate.simulate_section()` as the preferred source of synthetic data** in tests and notebooks — it produces a reproducible `SimulationResult` with both `true_diameters` and `apparent_diameters` as `MeasurementData`, with a known ground truth for validating stereological corrections. Always pass `seed=` for reproducibility in tests:
+
+```python
+from stamp.simulate import simulate_section
+
+sim = simulate_section(mu=30.0, sigma=0.3, n_intersections=300, seed=42)
+# sim.apparent_diameters  → MeasurementData (2-D section measurements)
+# sim.true_diameters      → MeasurementData (3-D ground truth)
+```
+
+Do not generate raw `np.random` arrays in tests when `simulate_section` covers the case.
 
 ```bash
 uv run pytest                        # run all tests
@@ -124,6 +263,78 @@ uv run pytest --cov=stamp --cov-report=html   # HTML coverage report
 ```bash
 uv run sphinx-build -W -E -b html docs docs/_build/html   # -W = warnings as errors, -E = always rebuild from scratch
 ```
+
+---
+
+## Notebook conventions
+
+### Numbering and naming
+
+Notebooks are numbered with a two-digit zero-padded prefix: `01_quickstart.ipynb`, `02_simulation_validation.ipynb`, etc.  Pick the next available number.  Use lowercase with underscores for the topic part.
+
+### Kernel
+
+Register the uv venv as a kernel once per machine:
+
+```bash
+uv run python -m ipykernel install --user --name stamp-dev --display-name "STAMP (dev)"
+```
+
+All notebooks must use the `stamp-dev` kernel so that CI execution picks up the correct environment.
+
+### Synthetic data in notebooks
+
+Prefer `stamp.simulate.simulate_section()` over bundling external data files when the notebook's purpose is to demonstrate or validate a method.  It produces a fully reproducible dataset with a known ground truth and requires no data file at all:
+
+```python
+from stamp.simulate import simulate_section
+
+sim = simulate_section(mu=45.0, sigma=0.35, n_intersections=500, seed=0)
+ecds = sim.apparent_diameters   # pass directly to stamp.stereo / stamp.stats / stamp.plot
+```
+
+Only use a file in `notebooks/data/` when the notebook demonstrates loading real experimental data.
+
+### Data files
+
+- Input data lives in `notebooks/data/`.  Name files descriptively: `apparent_diameters.txt`, `GOO220_52_FeatureMeas.csv`.
+- Notebooks may write pipeline output (plots, CSVs) to a sub-directory of `notebooks/data/`.
+- Use this two-path resolution pattern so the notebook runs correctly from both the repo root and the `notebooks/` directory:
+
+```python
+from pathlib import Path
+
+data_path = Path("notebooks/data/my_file.csv")
+if not data_path.exists():
+    data_path = Path("data/my_file.csv")
+```
+
+### Cell structure
+
+Every notebook must open with:
+1. A **Markdown title cell** — `# STAMP — <Topic>` plus a numbered outline of what the notebook covers.
+2. A **single imports cell** containing `%matplotlib inline`, all `import` statements, and `warnings.filterwarnings` if needed.
+3. Section cells thereafter, each preceded by a Markdown header (`## 1. ...`).
+
+### Runtime limit
+
+The full notebook must execute in **under 120 seconds**.  If a computation takes longer, add a note and cache the result to a file.
+
+### Execute before committing
+
+```bash
+uv run jupyter nbconvert --to notebook --execute notebooks/NN_<topic>.ipynb --inplace
+```
+
+Verify outputs: no empty plots, no NaN results, no unexpected warnings.  Commit the executed notebook (outputs included).
+
+### Documentation link
+
+After adding a notebook, update `docs/examples.md`:
+- Add the notebook to the `nbgallery` directive.
+- Add a `###` sub-section with a one-paragraph description.
+
+Then verify the docs build: `uv run sphinx-build -W -E -b html docs docs/_build/html`.
 
 ---
 
