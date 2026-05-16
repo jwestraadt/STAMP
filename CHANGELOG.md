@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a2] - 2026-05-16
+
+### Added
+- Optional `notebooks` extra — installs JupyterLab and ipykernel for running the example notebooks (`pip install "nanoshot-stamp[notebooks]"`)
+
 ## [0.1.0a1] - 2026-05-16
 
 ### Added
