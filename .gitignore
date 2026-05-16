@@ -57,6 +57,8 @@ notebooks/*.csv
 # Generated notebook data (keep apparent_diameters.txt)
 notebooks/data/multi_state/
 notebooks/data/multi_state_batch/
+notebooks/data/*_FeatureMeas.csv
+notebooks/data/GOO220_mipar/
 
 # Spurious nested directory created by Sphinx docs build
 notebooks/notebooks/
