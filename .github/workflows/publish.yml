@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/stamp/
+      url: https://pypi.org/project/nanoshot-stamp/
     permissions:
       id-token: write
     steps:

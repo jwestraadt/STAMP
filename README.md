@@ -4,8 +4,8 @@
 # STAMP
 
 [![CI](https://github.com/jwestraadt/STAMP/actions/workflows/ci.yml/badge.svg)](https://github.com/jwestraadt/STAMP/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/pypi/v/stamp)](https://pypi.org/project/stamp/)
-[![Python versions](https://img.shields.io/pypi/pyversions/stamp)](https://pypi.org/project/stamp/)
+[![PyPI version](https://img.shields.io/pypi/v/nanoshot-stamp)](https://pypi.org/project/nanoshot-stamp/)
+[![Python versions](https://img.shields.io/pypi/pyversions/nanoshot-stamp)](https://pypi.org/project/nanoshot-stamp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![codecov](https://codecov.io/gh/jwestraadt/STAMP/branch/main/graph/badge.svg)](https://codecov.io/gh/jwestraadt/STAMP)
 
@@ -17,67 +17,31 @@ It provides tools to load grain or precipitate measurements, apply stereological
 corrections to recover 3-D size distributions, compute descriptive statistics with
 confidence intervals, and generate publication-ready figures.
 
-## Features
+## Modules
 
-- **I/O** — load CSV, Excel, TXT/TSV files into a `pd.DataFrame`; import MIPAR feature-measurement exports directly with `load_mipar_features()`; non-finite and non-positive values are dropped with a warning
-- **Stereology** — ECD conversion, Fullman (1953) linear intercept correction, Saltykov/Wicksell (1925/1967) matrix unfolding, Two-step lognormal fitting (Lopez-Sanchez & Llana-Funez 2016)
-- **Statistics** — arithmetic mean (ASTM E112, GCI, mCox), geometric mean (CLT, Bayesian), median (Hollander–Wolfe CI), KDE mode, MLE distribution fitting with KS goodness-of-fit
-- **Plots** — histogram + KDE, Saltykov dual-panel (frequency + volume CDF), two-step fit with ±3σ band, PDF/CDF profile, Q-Q plot; all figures return a `matplotlib.Figure` and optionally save to file
-- **Pipeline** — `run()` for per-FOV CSV files, `run_batch()` for single-file batch format, `run_mipar()` for MIPAR exports; all produce a `PipelineResult` with per-state statistics, a summary DataFrame, and optional auto-saved box plot and CSV
-
-## Quick start
-
-```python
-from stamp.io import load
-from stamp import stereo, stats, plot
-
-# Load measurements from any CSV/Excel/TXT file
-df = load("grain_sizes.csv", column="ECD_um", unit="µm")
-
-# Apply stereological corrections
-ecds = stereo.ecd_from_area(df)
-sal = stereo.saltykov(ecds)
-
-# Descriptive statistics
-desc = stats.describe(df)
-print(f"Geometric mean: {desc.gmean.mean:.2f} ± {desc.gmean.std:.2f} {df.attrs['unit']}")
-
-# Publication-ready plot
-fig = plot.distribution(df)
-fig.savefig("grain_size_distribution.png", dpi=300)
-```
-
-```python
-from stamp.pipeline import run_mipar
-
-# Multi-state pipeline from MIPAR feature-measurement exports
-result = run_mipar(
-    files={
-        "As-received": "state_A_FeatureMeas.csv",
-        "Annealed":    "state_B_FeatureMeas.csv",
-    },
-    measurement="Equivalent Diameter (um)",
-    unit="µm",
-    output_dir="results/",
-)
-print(result.summary)
-```
+| Module | Purpose |
+|---|---|
+| `stamp.io` | Load CSV, Excel, or TXT/TSV files and MIPAR feature-measurement exports into a `pd.DataFrame` |
+| `stamp.stereo` | Stereological corrections: ECD conversion, Fullman (1953) linear intercept, Saltykov/Wicksell (1925/1967) matrix unfolding, two-step lognormal fitting (Lopez-Sanchez & Llana-Funez 2016) |
+| `stamp.stats` | Descriptive statistics with confidence intervals: arithmetic mean (ASTM E112, GCI, mCox), geometric mean (CLT, Bayesian), median (Hollander–Wolfe), KDE mode, MLE distribution fitting with KS goodness-of-fit |
+| `stamp.plot` | Publication-ready figures: histogram + KDE, Saltykov dual-panel (frequency + volume CDF), two-step fit with ±3σ band, PDF/CDF profile, Q-Q plot |
+| `stamp.pipeline` | Batch processing across multiple material states; produces a `PipelineResult` with per-state statistics, a summary DataFrame, and optional auto-saved box plot and CSV |
 
 ## Installation
 
 ```bash
-pip install stamp
+pip install nanoshot-stamp
 ```
 
 Or with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv add stamp
+uv add nanoshot-stamp
 ```
 
 ## Documentation
 
-Full documentation is available at [jwestraadt.github.io/STAMP](https://jwestraadt.github.io/STAMP).
+Full documentation is available at [stamp.readthedocs.io](https://stamp.readthedocs.io/).
 
 ## Citation
 
