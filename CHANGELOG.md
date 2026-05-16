@@ -67,4 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added STAMP logo (stylised grain-boundary pattern) shown in the docs navbar and README
 - Switched documentation theme to PyData Sphinx Theme with a top navigation bar (Installation, Examples, Contributing, Changelog, API Reference) and GitHub link
 
-[Unreleased]: https://github.com/jwestraadt/STAMP/compare/HEAD...HEAD
+[Unreleased]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a4...HEAD
+[0.1.0a4]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a3...v0.1.0a4
+[0.1.0a2]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a1...v0.1.0a2
+[0.1.0a1]: https://github.com/jwestraadt/STAMP/releases/tag/v0.1.0a1
