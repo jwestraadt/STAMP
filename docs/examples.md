@@ -43,7 +43,9 @@ notebooks/04_mipar_feature_analysis
 **`01_quickstart.ipynb`** — end-to-end workflow for a single material state:
 load measurements from a text file, compute descriptive statistics with
 confidence intervals, fit a lognormal distribution, apply Saltykov / two-step
-stereological correction, and generate all publication-ready figures.
+stereological correction, generate publication-ready figures, and export results
+tables as CSV or LaTeX using `stamp.export` (§9 demonstrates default, Nature,
+and custom journal styles).
 
 ### Stereological Correction Validation
 

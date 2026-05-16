@@ -16,6 +16,20 @@ from stamp._types import (
     SimulationResult,
     TwoStepResult,
 )
+from stamp.export import (
+    DEFAULT,
+    JAMA,
+    NATURE,
+    JournalStyle,
+    apply_style,
+    bw_bars,
+    figure_for,
+    journal_style,
+    panel_label,
+    save,
+    to_csv,
+    to_latex,
+)
 
 __all__ = [
     "__version__",
@@ -28,4 +42,16 @@ __all__ = [
     "PeakResult",
     "FitResult",
     "DescribeResult",
+    "JournalStyle",
+    "DEFAULT",
+    "NATURE",
+    "JAMA",
+    "apply_style",
+    "journal_style",
+    "figure_for",
+    "panel_label",
+    "bw_bars",
+    "save",
+    "to_csv",
+    "to_latex",
 ]

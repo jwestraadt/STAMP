@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+**Export**
+- Publication-ready figure styling and table export — apply journal formatting
+  (default, Nature preset, or custom overrides) to any STAMP plot and export
+  results tables as CSV or LaTeX booktabs (`stamp.export`)
+
 ## [0.1.0a4] - 2026-05-16
 
 ### Added
