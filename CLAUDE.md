@@ -52,6 +52,58 @@ Examples:
 
 ---
 
+## Branches, PRs, and merging
+
+### Branch naming
+
+Mirror the Conventional Commits type:
+
+| Work type | Branch name |
+|---|---|
+| New feature | `feat/<module>-<short-desc>` |
+| Bug fix | `fix/<module>-<short-desc>` |
+| Docs / notebooks | `docs/<short-desc>` |
+| Refactor / CI / chore | `chore/<short-desc>` |
+
+Examples: `feat/stereo-johnson-correction`, `fix/io-xlsx-encoding`, `docs/add-pipeline-notebook`.
+
+### Opening the PR
+
+```bash
+gh pr create --title "feat(<module>): <short summary>" --body "$(cat <<'EOF'
+## Summary
+- <what this adds or fixes — one bullet per logical change>
+
+## Notebooks added
+- `notebooks/NN_<topic>.ipynb` — <one-line description>  (omit section if none)
+
+## Test plan
+- [ ] `uv run ruff format . && uv run ruff check . --fix`
+- [ ] `uv run pytest` — all tests pass, coverage ≥ 60 %
+- [ ] Notebook executes end-to-end without errors
+- [ ] `uv run sphinx-build -W -E -b html docs docs/_build/html` — no warnings
+- [ ] CHANGELOG updated under `[Unreleased]`
+EOF
+)"
+```
+
+Open as a **draft** PR if the branch is still in progress; mark ready for review only when all checklist items are ticked and CI is green.
+
+### Merge strategy
+
+Use **squash merge** on GitHub (`Squash and merge` button).  This keeps `main` history as one commit per feature and preserves the Conventional Commits shape for automated changelogs.  Never use rebase-merge or create-merge-commit for feature work.
+
+### CI failure recovery
+
+When a pushed PR fails CI:
+
+1. Fix the issue locally.
+2. Re-run the full pre-commit checklist (`ruff format`, `ruff check`, `pytest`).
+3. `git push` — do **not** amend or force-push a branch that already has a PR open; just push a new commit.
+4. CI will re-trigger automatically on the new push.
+
+---
+
 ## Code style
 
 - **Formatter / linter:** Ruff (config in `pyproject.toml`) — 88-char lines, Python 3.9 target.
@@ -124,6 +176,65 @@ uv run pytest --cov=stamp --cov-report=html   # HTML coverage report
 ```bash
 uv run sphinx-build -W -E -b html docs docs/_build/html   # -W = warnings as errors, -E = always rebuild from scratch
 ```
+
+---
+
+## Notebook conventions
+
+### Numbering and naming
+
+Notebooks are numbered with a two-digit zero-padded prefix: `01_quickstart.ipynb`, `02_simulation_validation.ipynb`, etc.  Pick the next available number.  Use lowercase with underscores for the topic part.
+
+### Kernel
+
+Register the uv venv as a kernel once per machine:
+
+```bash
+uv run python -m ipykernel install --user --name stamp-dev --display-name "STAMP (dev)"
+```
+
+All notebooks must use the `stamp-dev` kernel so that CI execution picks up the correct environment.
+
+### Data files
+
+- Input data lives in `notebooks/data/`.  Name files descriptively: `apparent_diameters.txt`, `GOO220_52_FeatureMeas.csv`.
+- Notebooks may write pipeline output (plots, CSVs) to a sub-directory of `notebooks/data/`.
+- Use this two-path resolution pattern so the notebook runs correctly from both the repo root and the `notebooks/` directory:
+
+```python
+from pathlib import Path
+
+data_path = Path("notebooks/data/my_file.csv")
+if not data_path.exists():
+    data_path = Path("data/my_file.csv")
+```
+
+### Cell structure
+
+Every notebook must open with:
+1. A **Markdown title cell** — `# STAMP — <Topic>` plus a numbered outline of what the notebook covers.
+2. A **single imports cell** containing `%matplotlib inline`, all `import` statements, and `warnings.filterwarnings` if needed.
+3. Section cells thereafter, each preceded by a Markdown header (`## 1. ...`).
+
+### Runtime limit
+
+The full notebook must execute in **under 120 seconds**.  If a computation takes longer, add a note and cache the result to a file.
+
+### Execute before committing
+
+```bash
+uv run jupyter nbconvert --to notebook --execute notebooks/NN_<topic>.ipynb --inplace
+```
+
+Verify outputs: no empty plots, no NaN results, no unexpected warnings.  Commit the executed notebook (outputs included).
+
+### Documentation link
+
+After adding a notebook, update `docs/examples.md`:
+- Add the notebook to the `nbgallery` directive.
+- Add a `###` sub-section with a one-paragraph description.
+
+Then verify the docs build: `uv run sphinx-build -W -E -b html docs docs/_build/html`.
 
 ---
 
