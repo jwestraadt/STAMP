@@ -17,6 +17,8 @@ It provides tools to load grain or precipitate measurements, apply stereological
 corrections to recover 3-D size distributions, compute descriptive statistics with
 confidence intervals, and generate publication-ready figures.
 
+New features follow a **spec-driven development** workflow — a written spec is agreed before any code is written, ensuring the API, algorithm, and test plan are correct by design. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
 ## Modules
 
 | Module | Purpose |
