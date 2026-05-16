@@ -1,5 +1,5 @@
 <div align="center">
-<img src="docs/_static/logo.svg" alt="STAMP logo" width="120"/>
+<img src="https://raw.githubusercontent.com/jwestraadt/STAMP/main/docs/_static/logo.svg" alt="STAMP logo" width="120"/>
 
 # STAMP
 
