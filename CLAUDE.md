@@ -17,6 +17,43 @@ All commands below are run via `uv run <tool>` so they use the project venv.
 
 ---
 
+## Agentic coding guidance
+
+### Plan mode — use before large changes
+
+Before starting any task that touches more than one module, renames or removes public API, or adds a new module, enter Plan mode first.  Outline the approach, identify affected files, and confirm the design before writing any code.  This avoids costly mid-implementation pivots.
+
+Triggers that require a plan:
+- New public module (new file under `src/stamp/`)
+- Any change to `_types.py` (affects every module)
+- Refactor that touches ≥ 3 files
+- Breaking API change (parameter rename, return-type change, removal)
+
+Single-function additions to an existing module do not need a formal plan — proceed directly to implementation.
+
+### Worktrees — use for isolated feature work
+
+Use a git worktree when working on a feature branch so the main checkout stays clean and runnable.  This is especially important when a feature takes multiple sessions or involves executing notebooks mid-development.
+
+```bash
+# Create a worktree for the feature branch
+git worktree add ../stamp-feat-<name> -b feat/<module>-<name>
+
+# Work in the worktree; main checkout is untouched
+cd ../stamp-feat-<name>
+
+# Remove when the PR is merged
+git worktree remove ../stamp-feat-<name>
+```
+
+Within Claude Code, use the `EnterWorktree` tool to switch into a worktree-isolated context for the session.
+
+### Commit atomicity
+
+Each commit should be a single logical unit that passes the pre-commit checklist on its own.  Do not batch unrelated changes into one commit.  If a notebook and a new function are both part of the feature, commit them together; if a docstring fix is unrelated, it gets its own commit.
+
+---
+
 ## Before every commit — mandatory checklist
 
 Run these in order and fix any failures before committing:
