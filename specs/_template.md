@@ -134,3 +134,28 @@ print(result.some_field)   # expected output
 - [ ] All behavioral requirements are testable
 - [ ] Notebook section outline agreed (or confirmed not needed)
 - [ ] Ready to enter Plan mode
+
+---
+
+## Before writing any code
+
+After plan approval, create a git worktree for the feature branch so `main` stays
+clean and runnable throughout development:
+
+```bash
+git worktree add ../stamp-feat-<name> -b feat/<module>-<name>
+cd ../stamp-feat-<name>
+```
+
+Within Claude Code, use `EnterWorktree` to switch into the isolated context.
+Remove the worktree after the PR is merged:
+
+```bash
+git worktree remove ../stamp-feat-<name>
+```
+
+> **Why a worktree instead of a plain branch?**
+> A worktree keeps both `main` and the feature directory checked out simultaneously.
+> You can run tests on `main`, execute notebooks, or check unrelated code without
+> stashing or switching branches.  For features that span multiple sessions or touch
+> notebooks (which need execution before commit), this isolation is essential.
