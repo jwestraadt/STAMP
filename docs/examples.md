@@ -36,6 +36,7 @@ notebooks/01_quickstart
 notebooks/02_simulation_validation
 notebooks/03_multi_state_pipeline
 notebooks/04_mipar_feature_analysis
+notebooks/05_mipar_image_analysis
 ```
 
 ### Quick Start
@@ -70,3 +71,13 @@ per-FOV ECD box plots for each phase rendered in Nature journal style (B&W,
 hatch-differentiated boxes, 89 mm / 180 mm column widths) and exports the
 summary statistics table as both CSV and a LaTeX booktabs table via
 `stamp.export.to_latex`.
+
+### MIPAR Image-Level Measurement Analysis
+
+**`05_mipar_image_analysis.ipynb`** — `stamp.io.load_mipar_image` applied to
+MIPAR batch image-measurement CSVs (one row per FOV, all phases as column
+suffixes) across three material states (GOO220\_51, GOO220\_52, GOO220\_53).
+Demonstrates auto-detection of phases, long-format reshaping, per-phase
+per-state summary tables exported as CSV and LaTeX, and multi-panel Nature
+journal-style box plots comparing all image-level measurements across states
+for each precipitate phase.

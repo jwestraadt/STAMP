@@ -292,3 +292,167 @@ def test_load_mipar_features_trailing_comma(tmp_path):
     assert set(df["Layer"].unique()) == {"Alpha", "Beta"}
     assert "ECD (um)" in df.columns
     assert len(df) == 2
+
+
+# ── load_mipar_image helpers and tests ────────────────────────────────────────
+
+
+def _write_mipar_image_csv(path: Path) -> Path:
+    """Write a synthetic MIPAR image-measurement CSV.
+
+    2 FOVs × 3 phases × 3 measurement types.  One measurement name
+    intentionally contains ' - ' to exercise rsplit correctness.
+    Trailing comma on every data row mirrors the real MIPAR export quirk.
+    """
+    phases = ["M23C6", "MX ZPhase", "Laves"]
+    meas = [
+        "Area Fraction (%)",
+        "Number Density (features/um^2)",
+        "Mean Intercept - Objects (Random) (um)",  # contains ' - '
+    ]
+    header_cols = ["Image"] + [f"{m} - {p}" for p in phases for m in meas]
+    header = ",".join(header_cols) + ","  # trailing comma
+    rows = []
+    for fov in ["fov1.tif", "fov2.tif"]:
+        vals = [str(round(0.1 * (i + 1), 4)) for i in range(len(phases) * len(meas))]
+        rows.append(fov + "," + ",".join(vals) + ",")
+    path.write_text("\n".join([header] + rows))
+    return path
+
+
+@pytest.fixture()
+def mipar_image_csv(tmp_path):
+    return _write_mipar_image_csv(tmp_path / "batch.csv")
+
+
+def test_load_mipar_image_returns_dataframe(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    df = load_mipar_image(mipar_image_csv)
+    assert isinstance(df, pd.DataFrame)
+
+
+def test_load_mipar_image_row_count(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    df = load_mipar_image(mipar_image_csv)
+    assert len(df) == 6  # 2 FOVs × 3 phases
+
+
+def test_load_mipar_image_columns(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    df = load_mipar_image(mipar_image_csv)
+    assert "Image" in df.columns
+    assert "Phase" in df.columns
+    assert "Area Fraction (%)" in df.columns
+    assert "Number Density (features/um^2)" in df.columns
+
+
+def test_load_mipar_image_phase_values(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    df = load_mipar_image(mipar_image_csv)
+    assert set(df["Phase"].unique()) == {"M23C6", "MX ZPhase", "Laves"}
+
+
+def test_load_mipar_image_image_values(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    df = load_mipar_image(mipar_image_csv)
+    assert set(df["Image"].unique()) == {"fov1.tif", "fov2.tif"}
+
+
+def test_load_mipar_image_dash_in_measurement_name(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    df = load_mipar_image(mipar_image_csv)
+    assert "Mean Intercept - Objects (Random) (um)" in df.columns
+    # The phase suffix must NOT appear in the column name
+    assert not any(
+        "M23C6" in c or "Laves" in c or "MX ZPhase" in c
+        for c in df.columns
+        if c not in ("Image", "Phase")
+    )
+
+
+def test_load_mipar_image_trailing_comma(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    df = load_mipar_image(mipar_image_csv)
+    assert not any(c.startswith("Unnamed") for c in df.columns)
+
+
+def test_load_mipar_image_nan_row_kept(tmp_path):
+    from stamp.io import load_mipar_image
+
+    p = tmp_path / "nan.csv"
+    p.write_text(
+        "Image,Area Fraction (%) - M23C6,Area Fraction (%) - Laves\nfov1.tif,,0.5\n"
+    )
+    df = load_mipar_image(p)
+    assert len(df) == 2  # both phases kept
+    m23 = df[df["Phase"] == "M23C6"]
+    assert m23["Area Fraction (%)"].isna().all()
+
+
+def test_load_mipar_image_phases_filter(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    df = load_mipar_image(mipar_image_csv, phases=["M23C6"])
+    assert set(df["Phase"].unique()) == {"M23C6"}
+    assert len(df) == 2  # 2 FOVs
+
+
+def test_load_mipar_image_invalid_phase_raises(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    with pytest.raises(ValueError, match="Bad"):
+        load_mipar_image(mipar_image_csv, phases=["Bad"])
+
+
+def test_load_mipar_image_drop_columns(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    df = load_mipar_image(mipar_image_csv, drop_columns=["Area Fraction (%)"])
+    assert "Area Fraction (%)" not in df.columns
+
+
+def test_load_mipar_image_invalid_drop_column_raises(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    with pytest.raises(ValueError, match="NoSuchCol"):
+        load_mipar_image(mipar_image_csv, drop_columns=["NoSuchCol"])
+
+
+def test_load_mipar_image_rename_columns(mipar_image_csv):
+    from stamp.io import load_mipar_image
+
+    df = load_mipar_image(mipar_image_csv, rename_columns={"Area Fraction (%)": "AF"})
+    assert "AF" in df.columns
+    assert "Area Fraction (%)" not in df.columns
+
+
+def test_load_mipar_image_empty_file_raises(tmp_path):
+    from stamp.io import load_mipar_image
+
+    p = tmp_path / "empty.csv"
+    p.write_text("Image,Area Fraction (%) - M23C6\n")
+    with pytest.raises(ValueError, match="empty"):
+        load_mipar_image(p)
+
+
+def test_load_mipar_image_file_not_found(tmp_path):
+    from stamp.io import load_mipar_image
+
+    with pytest.raises(FileNotFoundError):
+        load_mipar_image(tmp_path / "missing.csv")
+
+
+def test_load_mipar_image_unsupported_extension(tmp_path):
+    from stamp.io import load_mipar_image
+
+    p = tmp_path / "data.hdf5"
+    p.write_text("dummy")
+    with pytest.raises(ValueError, match="Unsupported"):
+        load_mipar_image(p)

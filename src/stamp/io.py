@@ -128,6 +128,139 @@ def load(
     return out
 
 
+def _parse_phase_columns(columns: list[str]) -> dict[str, list[str]]:
+    """Map each detected phase to its list of wide-format column names.
+
+    Uses ``str.rsplit(' - ', 1)`` so that measurement names containing
+    ' - ' (e.g. ``'Mean Intercept - Objects (Random) (um) - M23C6'``) are
+    split correctly on the *rightmost* separator only.
+    """
+    phase_cols: dict[str, list[str]] = {}
+    for col in columns:
+        parts = col.rsplit(" - ", 1)
+        if len(parts) == 2:
+            phase = parts[1]
+            phase_cols.setdefault(phase, []).append(col)
+    return phase_cols
+
+
+def load_mipar_image(
+    path: str | Path,
+    *,
+    phases: list[str] | None = None,
+    drop_columns: list[str] | None = None,
+    rename_columns: dict[str, str] | None = None,
+) -> pd.DataFrame:
+    """Load a MIPAR image-measurement CSV into a tidy long-format DataFrame.
+
+    MIPAR image-measurement exports store one row per field-of-view (FOV).
+    Each measurement column is named ``<MeasurementType> - <Phase>``.  This
+    function auto-detects phases from column names and reshapes the table to
+    long format with one row per (FOV × phase) combination.
+
+    Parameters
+    ----------
+    path : str or Path
+        Path to the MIPAR image-measurement CSV (or Excel) file.
+    phases : list of str, optional
+        Phases to retain.  ``None`` (default) keeps all auto-detected phases.
+    drop_columns : list of str, optional
+        Measurement column names to drop from the output after melting.
+        Phase suffix must already be stripped (e.g. ``"Area Fraction (%)"``).
+    rename_columns : dict of {str: str}, optional
+        Rename map applied to measurement columns after melting, e.g.
+        ``{"Area Fraction (%)": "Vv (%)"}``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Long-format table with columns ``Image``, ``Phase``, and one column
+        per measurement type (phase suffix stripped).  Row count equals
+        ``n_FOVs × n_phases`` before any *phases* filter.
+
+    Raises
+    ------
+    FileNotFoundError
+        If *path* does not exist.
+    ValueError
+        If the file extension is unsupported, the file is empty, the
+        ``Image`` column is absent, any entry in *phases* is not found in the
+        file, or any entry in *drop_columns* is not present in the output.
+
+    Examples
+    --------
+    >>> df = load_mipar_image("GOO220_52_BatchMeas.csv")
+    >>> df["Phase"].unique()
+    array(['M23C6', 'MX ZPhase', 'Laves'], dtype=object)
+    >>> df.shape
+    (30, 16)
+    """
+    path = Path(path)
+
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+
+    ext = path.suffix.lower()
+    if ext not in _ALL_EXTENSIONS:
+        raise ValueError(
+            f"Unsupported file extension {ext!r}. "
+            f"Supported extensions: {sorted(_ALL_EXTENSIONS)}"
+        )
+
+    if ext in _TEXT_EXTENSIONS:
+        sep = "\t" if ext == ".tsv" else ","
+        df = pd.read_csv(path, sep=sep, engine="python", index_col=False)
+        df = df.loc[:, ~df.columns.str.startswith("Unnamed")]
+    else:
+        df = pd.read_excel(path)
+
+    if df.empty:
+        raise ValueError(f"File is empty (no data rows): {path}")
+
+    if "Image" not in df.columns:
+        raise ValueError(
+            f"Required column 'Image' not found. Available columns: {list(df.columns)}"
+        )
+
+    measurement_cols = [c for c in df.columns if c != "Image"]
+    phase_cols = _parse_phase_columns(measurement_cols)
+
+    if phases is not None:
+        unknown = [p for p in phases if p not in phase_cols]
+        if unknown:
+            raise ValueError(
+                f"Phase(s) not found in file: {unknown}. "
+                f"Detected phases: {sorted(phase_cols)}."
+            )
+
+    frames = []
+    for phase, cols in phase_cols.items():
+        sub = df[["Image"] + cols].copy()
+        sub.columns = pd.Index(["Image"] + [c.rsplit(" - ", 1)[0] for c in cols])
+        sub.insert(1, "Phase", phase)
+        frames.append(sub)
+
+    result = pd.concat(frames, ignore_index=True)
+
+    if phases is not None:
+        result = result[result["Phase"].isin(phases)].reset_index(drop=True)
+
+    if drop_columns is not None:
+        meas_cols_out = [c for c in result.columns if c not in ("Image", "Phase")]
+        missing = [c for c in drop_columns if c not in meas_cols_out]
+        if missing:
+            raise ValueError(
+                f"Column(s) not found in melted DataFrame: {missing}. "
+                f"Available measurement columns: {sorted(meas_cols_out)}."
+            )
+        result = result.drop(columns=drop_columns)
+
+    if rename_columns is not None:
+        result = result.rename(columns=rename_columns)
+
+    return result
+
+
 def load_mipar_features(
     path: str | Path,
     *,
