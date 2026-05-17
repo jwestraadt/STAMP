@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+**I/O**
+- Load MIPAR image-measurement batch CSVs (one row per FOV, all phases as
+  column suffixes) into a tidy long-format DataFrame with one row per
+  (FOV × phase) combination (`stamp.io.load_mipar_image()`)
+
 **Export**
 - Publication-ready figure styling and table export — apply journal formatting
   (default, Nature preset, or custom overrides) to any STAMP plot and export
