@@ -66,4 +66,7 @@ reference lines.
 **`04_mipar_feature_analysis.ipynb`** — `stamp.pipeline.run_mipar` applied to
 MIPAR feature-measurement CSVs containing multiple precipitate phases (M23C6,
 MX ZPhase, Laves) across two material states (GOO220\_52 vs GOO220\_53).  Shows
-per-FOV ECD box plots for each phase and a pivoted summary table.
+per-FOV ECD box plots for each phase rendered in Nature journal style (B&W,
+hatch-differentiated boxes, 89 mm / 180 mm column widths) and exports the
+summary statistics table as both CSV and a LaTeX booktabs table via
+`stamp.export.to_latex`.
