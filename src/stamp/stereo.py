@@ -332,3 +332,211 @@ def _lognormal_pdf(x: np.ndarray, shape: float, scale: float) -> np.ndarray:
             -0.5 * ((np.log(x) - m) / s) ** 2
         )
     return np.where(np.isfinite(result), result, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# Image-level stereological quantities
+# ---------------------------------------------------------------------------
+
+
+def volume_fraction(
+    area_fraction_pct: float | np.ndarray,
+) -> float | np.ndarray:
+    """Convert areal fraction (%) to volume fraction via the Delesse principle.
+
+    Parameters
+    ----------
+    area_fraction_pct : float or np.ndarray
+        Areal phase fraction in percent, as reported by MIPAR
+        (``"Area Fraction (%)"``) or equivalent image analysis software.
+        Must be in [0, 100]; NaN values are passed through.
+
+    Returns
+    -------
+    float or np.ndarray
+        Volume fraction $V_V$ in [0, 1] (dimensionless).  Scalar input
+        returns a scalar; array input returns an array of the same shape.
+
+    Raises
+    ------
+    ValueError
+        If any non-NaN value falls outside [0, 100].
+
+    Notes
+    -----
+    Delesse (1848) showed that the areal fraction of a phase on a random
+    planar section equals its volume fraction: $V_V = A_A$.
+
+    References
+    ----------
+    Delesse, A. (1848) *Ann. Mines* 13, 379–388.
+
+    Examples
+    --------
+    >>> volume_fraction(5.0)
+    0.05
+    >>> volume_fraction(np.array([0.0, 5.0, 100.0]))
+    array([0.  , 0.05, 1.  ])
+    """
+    arr = np.asarray(area_fraction_pct, dtype=float)
+    valid = arr[~np.isnan(arr)]
+    if valid.size > 0 and (np.any(valid < 0) or np.any(valid > 100)):
+        raise ValueError(
+            "area_fraction_pct must be in [0, 100]; got values outside this range."
+        )
+    result = arr / 100.0
+    return float(result) if result.ndim == 0 else result
+
+
+def surface_area_density(
+    vv: float | np.ndarray,
+    l_alpha_um: float | np.ndarray,
+) -> float | np.ndarray:
+    """Estimate the surface area density $S_V$ from volume fraction and mean intercept.
+
+    Parameters
+    ----------
+    vv : float or np.ndarray
+        Volume fraction (dimensionless, in [0, 1]).  Obtain from
+        :func:`volume_fraction` or directly from the area fraction.
+    l_alpha_um : float or np.ndarray
+        Mean intercept length through the phase of interest (µm), e.g.
+        MIPAR's ``"Mean Intercept - Objects (Random) (um)"``.
+        Must be > 0; NaN values are passed through.
+
+    Returns
+    -------
+    float or np.ndarray
+        Surface area density $S_V$ in µm⁻¹.  Scalar input returns a scalar;
+        array input returns an array of the same shape.
+
+    Raises
+    ------
+    ValueError
+        If any non-NaN value of *l_alpha_um* is ≤ 0.
+
+    Notes
+    -----
+    From Underwood (1970), for isotropic test lines:
+
+    .. math:: S_V = \\frac{4\\,V_V}{\\bar{L}_\\alpha}
+
+    where $\\bar{L}_\\alpha$ is the mean intercept length through the phase.
+
+    References
+    ----------
+    Underwood, E.E. (1970) *Quantitative Stereology*. Addison-Wesley.
+
+    Examples
+    --------
+    >>> surface_area_density(0.05, 0.5)
+    0.4
+    """
+    l_arr = np.asarray(l_alpha_um, dtype=float)
+    valid_l = l_arr[~np.isnan(l_arr)]
+    if valid_l.size > 0 and np.any(valid_l <= 0):
+        raise ValueError("l_alpha_um must be > 0; got values ≤ 0.")
+    result = 4.0 * np.asarray(vv, dtype=float) / l_arr
+    return float(result) if result.ndim == 0 else result
+
+
+def mean_caliper_diameter(
+    l_alpha_um: float | np.ndarray,
+) -> float | np.ndarray:
+    """Estimate the mean caliper (particle) diameter from the mean intercept length.
+
+    Parameters
+    ----------
+    l_alpha_um : float or np.ndarray
+        Mean intercept length through the phase of interest (µm), e.g.
+        MIPAR's ``"Mean Intercept - Objects (Random) (um)"``.
+        Must be > 0; NaN values are passed through.
+
+    Returns
+    -------
+    float or np.ndarray
+        Mean caliper diameter $\\bar{D}$ in µm.  Scalar input returns a
+        scalar; array input returns an array of the same shape.
+
+    Raises
+    ------
+    ValueError
+        If any non-NaN value of *l_alpha_um* is ≤ 0.
+
+    Notes
+    -----
+    Fullman (1953) showed that for convex, equiaxed particles:
+
+    .. math:: \\bar{D} = \\frac{3}{2}\\,\\bar{L}_\\alpha
+
+    The factor 3/2 is exact for spheres and a good approximation for
+    near-equiaxed precipitates.
+
+    References
+    ----------
+    Fullman, R.L. (1953) *Trans. AIME* 197, 447–452.
+
+    Examples
+    --------
+    >>> mean_caliper_diameter(0.5)
+    0.75
+    """
+    l_arr = np.asarray(l_alpha_um, dtype=float)
+    valid_l = l_arr[~np.isnan(l_arr)]
+    if valid_l.size > 0 and np.any(valid_l <= 0):
+        raise ValueError("l_alpha_um must be > 0; got values ≤ 0.")
+    result = 1.5 * l_arr
+    return float(result) if result.ndim == 0 else result
+
+
+def mean_free_path_3d(
+    vv: float | np.ndarray,
+    sv: float | np.ndarray,
+) -> float | np.ndarray:
+    """Estimate the 3-D mean free path (interparticle spacing) from $S_V$ and $V_V$.
+
+    Parameters
+    ----------
+    vv : float or np.ndarray
+        Volume fraction (dimensionless, in [0, 1)).  Obtain from
+        :func:`volume_fraction`.
+    sv : float or np.ndarray
+        Surface area density (µm⁻¹).  Obtain from :func:`surface_area_density`.
+        Must be > 0; NaN values are passed through.
+
+    Returns
+    -------
+    float or np.ndarray
+        3-D mean free path $\\lambda_{3D}$ in µm.  Scalar input returns a
+        scalar; array input returns an array of the same shape.
+
+    Raises
+    ------
+    ValueError
+        If any non-NaN value of *sv* is ≤ 0.
+
+    Notes
+    -----
+    From Underwood (1970):
+
+    .. math:: \\lambda_{3D} = \\frac{4\\,(1-V_V)}{S_V}
+
+    For isotropic microstructures this equals the mean intercept length
+    through the matrix phase ($\\bar{L}_\\beta$), which MIPAR measures
+    directly as *Mean Intercept – Holes (Random)*.
+
+    References
+    ----------
+    Underwood, E.E. (1970) *Quantitative Stereology*. Addison-Wesley.
+
+    Examples
+    --------
+    >>> mean_free_path_3d(0.05, 0.4)
+    9.5
+    """
+    sv_arr = np.asarray(sv, dtype=float)
+    valid_sv = sv_arr[~np.isnan(sv_arr)]
+    if valid_sv.size > 0 and np.any(valid_sv <= 0):
+        raise ValueError("sv must be > 0; got values ≤ 0.")
+    result = 4.0 * (1.0 - np.asarray(vv, dtype=float)) / sv_arr
+    return float(result) if result.ndim == 0 else result
