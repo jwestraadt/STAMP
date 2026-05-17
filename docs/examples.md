@@ -77,7 +77,12 @@ summary statistics table as both CSV and a LaTeX booktabs table via
 **`05_mipar_image_analysis.ipynb`** — `stamp.io.load_mipar_image` applied to
 MIPAR batch image-measurement CSVs (one row per FOV, all phases as column
 suffixes) across three material states (GOO220\_51, GOO220\_52, GOO220\_53).
-Demonstrates auto-detection of phases, long-format reshaping, per-phase
-per-state summary tables exported as CSV and LaTeX, and multi-panel Nature
-journal-style box plots comparing all image-level measurements across states
-for each precipitate phase.
+Demonstrates auto-detection of phases, long-format reshaping, and two
+analysis tiers: (1) 2-D per-FOV quantities — phase fraction, mean particle
+size, and interparticle spacing — summarised and plotted in Nature journal
+style; (2) 3-D stereological quantities — volume fraction $V_V$, surface
+area density $S_V$, mean caliper diameter $\bar{D}$, and 3-D mean free path
+$\lambda_{3D}$ — derived using `stamp.stereo.volume_fraction`,
+`surface_area_density`, `mean_caliper_diameter`, and `mean_free_path_3d`,
+then summarised and plotted in the same style.  All tables exported as CSV
+and LaTeX booktabs via `stamp.export`.
