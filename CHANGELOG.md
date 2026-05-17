@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (default, Nature preset, or custom overrides) to any STAMP plot and export
   results tables as CSV or LaTeX booktabs (`stamp.export`)
 
+**Notebooks**
+- `04_mipar_feature_analysis` — plots converted to Nature journal style (B&W,
+  hatch-differentiated boxes, correct column widths); summary table now also
+  exported as a LaTeX booktabs file via `stamp.export.to_latex`
+
 ## [0.1.0a4] - 2026-05-16
 
 ### Added
