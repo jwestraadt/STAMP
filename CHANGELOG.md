@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+**Stereology**
+- Derive volume fraction ($V_V$), surface area density ($S_V$), mean caliper
+  diameter ($\bar{D}$), and 3-D mean free path ($\lambda_{3D}$) from MIPAR
+  image-level measurements — applies Delesse (1848), Underwood (1970), and
+  Fullman (1953) relations directly to per-FOV DataFrame columns
+  (`stamp.stereo.volume_fraction`, `surface_area_density`,
+  `mean_caliper_diameter`, `mean_free_path_3d`)
+
+**I/O**
+- Load MIPAR image-measurement batch CSVs (one row per FOV, all phases as
+  column suffixes) into a tidy long-format DataFrame with one row per
+  (FOV × phase) combination (`stamp.io.load_mipar_image()`)
+
 **Export**
 - Publication-ready figure styling and table export — apply journal formatting
   (default, Nature preset, or custom overrides) to any STAMP plot and export

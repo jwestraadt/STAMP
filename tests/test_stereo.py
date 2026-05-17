@@ -6,7 +6,16 @@ import numpy as np
 import pytest
 
 from stamp._types import MeasurementData
-from stamp.stereo import ecd_from_area, linear_intercept_correction, saltykov, two_step
+from stamp.stereo import (
+    ecd_from_area,
+    linear_intercept_correction,
+    mean_caliper_diameter,
+    mean_free_path_3d,
+    saltykov,
+    surface_area_density,
+    two_step,
+    volume_fraction,
+)
 
 
 def _mdata(values, unit="µm²", label="Test"):
@@ -184,3 +193,142 @@ def test_two_step_fit_curve_length(synthetic_diameters):
 def test_two_step_invalid_bin_range(synthetic_diameters):
     with pytest.raises(ValueError):
         two_step(synthetic_diameters, bin_range=(15, 10))
+
+
+# ---------------------------------------------------------------------------
+# volume_fraction
+# ---------------------------------------------------------------------------
+
+
+def test_volume_fraction_scalar():
+    assert volume_fraction(50.0) == pytest.approx(0.5)
+
+
+def test_volume_fraction_zero():
+    assert volume_fraction(0.0) == pytest.approx(0.0)
+
+
+def test_volume_fraction_hundred():
+    assert volume_fraction(100.0) == pytest.approx(1.0)
+
+
+def test_volume_fraction_array():
+    result = volume_fraction(np.array([0.0, 5.0, 100.0]))
+    np.testing.assert_allclose(result, [0.0, 0.05, 1.0])
+
+
+def test_volume_fraction_nan_propagates():
+    result = volume_fraction(np.array([5.0, np.nan]))
+    assert result[0] == pytest.approx(0.05)
+    assert np.isnan(result[1])
+
+
+def test_volume_fraction_out_of_range_raises():
+    with pytest.raises(ValueError):
+        volume_fraction(-1.0)
+    with pytest.raises(ValueError):
+        volume_fraction(101.0)
+
+
+# ---------------------------------------------------------------------------
+# surface_area_density
+# ---------------------------------------------------------------------------
+
+
+def test_surface_area_density_scalar():
+    # S_V = 4 * 0.05 / 0.5 = 0.4
+    assert surface_area_density(0.05, 0.5) == pytest.approx(0.4)
+
+
+def test_surface_area_density_array():
+    result = surface_area_density(np.array([0.05, 0.10]), np.array([0.5, 1.0]))
+    np.testing.assert_allclose(result, [0.4, 0.4])
+
+
+def test_surface_area_density_nan_propagates():
+    result = surface_area_density(0.05, np.array([0.5, np.nan]))
+    assert result[0] == pytest.approx(0.4)
+    assert np.isnan(result[1])
+
+
+def test_surface_area_density_zero_intercept_raises():
+    with pytest.raises(ValueError):
+        surface_area_density(0.05, 0.0)
+
+
+def test_surface_area_density_negative_intercept_raises():
+    with pytest.raises(ValueError):
+        surface_area_density(0.05, -1.0)
+
+
+# ---------------------------------------------------------------------------
+# mean_caliper_diameter
+# ---------------------------------------------------------------------------
+
+
+def test_mean_caliper_diameter_scalar():
+    # D_bar = 3/2 * 0.5 = 0.75
+    assert mean_caliper_diameter(0.5) == pytest.approx(0.75)
+
+
+def test_mean_caliper_diameter_array():
+    result = mean_caliper_diameter(np.array([0.5, 1.0]))
+    np.testing.assert_allclose(result, [0.75, 1.5])
+
+
+def test_mean_caliper_diameter_nan_propagates():
+    result = mean_caliper_diameter(np.array([0.5, np.nan]))
+    assert result[0] == pytest.approx(0.75)
+    assert np.isnan(result[1])
+
+
+def test_mean_caliper_diameter_zero_raises():
+    with pytest.raises(ValueError):
+        mean_caliper_diameter(0.0)
+
+
+def test_mean_caliper_diameter_negative_raises():
+    with pytest.raises(ValueError):
+        mean_caliper_diameter(-0.1)
+
+
+# ---------------------------------------------------------------------------
+# mean_free_path_3d
+# ---------------------------------------------------------------------------
+
+
+def test_mean_free_path_3d_scalar():
+    # lambda = 4 * (1 - 0.05) / 0.4 = 9.5
+    assert mean_free_path_3d(0.05, 0.4) == pytest.approx(9.5)
+
+
+def test_mean_free_path_3d_array():
+    result = mean_free_path_3d(np.array([0.05, 0.10]), np.array([0.4, 0.4]))
+    np.testing.assert_allclose(result, [9.5, 9.0])
+
+
+def test_mean_free_path_3d_nan_propagates():
+    result = mean_free_path_3d(0.05, np.array([0.4, np.nan]))
+    assert result[0] == pytest.approx(9.5)
+    assert np.isnan(result[1])
+
+
+def test_mean_free_path_3d_zero_sv_raises():
+    with pytest.raises(ValueError):
+        mean_free_path_3d(0.05, 0.0)
+
+
+def test_mean_free_path_3d_negative_sv_raises():
+    with pytest.raises(ValueError):
+        mean_free_path_3d(0.05, -1.0)
+
+
+def test_mean_free_path_3d_consistency_with_sv_formula():
+    # lambda_3D = 4(1-Vv)/Sv and Sv = 4*Vv/L_alpha
+    # => lambda_3D = L_alpha * (1-Vv)/Vv
+    vv = 0.05
+    l_alpha = 0.5
+    sv = surface_area_density(vv, l_alpha)
+    lam = mean_free_path_3d(vv, sv)
+    expected = l_alpha * (1 - vv) / vv
+    assert lam == pytest.approx(expected)
