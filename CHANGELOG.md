@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a5] - 2026-05-17
+
 ### Added
 
 **Stereology**
@@ -28,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   results tables as CSV or LaTeX booktabs (`stamp.export`)
 
 **Notebooks**
+- `05_mipar_image_analysis` — new notebook demonstrating `load_mipar_image`
+  across three material states; derives and compares 2-D quantities (phase
+  fraction, mean particle size, interparticle spacing) and 3-D stereological
+  quantities ($V_V$, $S_V$, $\bar{D}$, $\lambda_{3D}$) per phase with
+  Nature journal-style box plots and LaTeX table exports
 - `04_mipar_feature_analysis` — plots converted to Nature journal style (B&W,
   hatch-differentiated boxes, correct column widths); summary table now also
   exported as a LaTeX booktabs file via `stamp.export.to_latex`
@@ -92,7 +99,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added STAMP logo (stylised grain-boundary pattern) shown in the docs navbar and README
 - Switched documentation theme to PyData Sphinx Theme with a top navigation bar (Installation, Examples, Contributing, Changelog, API Reference) and GitHub link
 
-[Unreleased]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a4...HEAD
+[Unreleased]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a5...HEAD
+[0.1.0a5]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a4...v0.1.0a5
 [0.1.0a4]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a3...v0.1.0a4
 [0.1.0a2]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a1...v0.1.0a2
 [0.1.0a1]: https://github.com/jwestraadt/STAMP/releases/tag/v0.1.0a1
