@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+**Notebooks**
+- `04_mipar_feature_analysis` and `05_mipar_image_analysis` — updated to
+  reflect a 4-phase MIPAR segmentation where `MX ZPhase` is split into two
+  independent phases (`MX` and `ZPhase`); `FILES` and `STATE_LABELS` trimmed
+  to the three available material states (GOO220\_51 gauge, \_52 thread,
+  \_53 fracture)
+- `run_mipar` pipeline gains `phase_aliases` and `missing_phase` parameters
+  so notebooks can normalise phase name capitalisation variants and handle
+  states where a phase is absent without raising an error
+
+### Fixed
+
+**Notebooks**
+- Corrected mojibake in `05_mipar_image_analysis` (axis labels, print
+  statements, and LaTeX captions displayed garbled characters such as
+  `â€"` and `Âµ` instead of `—` and `µ`)
+
 ## [0.1.0a5] - 2026-05-17
 
 ### Added
