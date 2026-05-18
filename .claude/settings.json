@@ -21,6 +21,17 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "python -c \"import sys,json,subprocess; d=json.load(sys.stdin); cmd=d.get('tool_input',{}).get('command',''); r1=subprocess.run(['git','checkout','main'],capture_output=True,text=True); r2=subprocess.run(['git','pull'],capture_output=True,text=True); out=(r1.stdout+r1.stderr+r2.stdout+r2.stderr).strip(); print(json.dumps({'hookSpecificOutput':{'hookEventName':'PostToolUse','additionalContext':'Switched to main and pulled: '+out}})) if 'gh pr merge' in cmd else None\" 2>/dev/null || true",
+            "statusMessage": "Switching to main and pulling..."
+          }
+        ]
+      },
+      {
         "matcher": "Edit|Write",
         "hooks": [
           {
