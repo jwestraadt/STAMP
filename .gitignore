@@ -54,9 +54,14 @@ docs/notebooks/
 notebooks/*.csv
 /*.png
 
-# Generated notebook data — only apparent_diameters.txt is tracked
+# Notebook generated outputs — only apparent_diameters.txt is tracked
 notebooks/data/*.csv
 notebooks/data/*.xlsx
+notebooks/data/*.png
+notebooks/data/*.pdf
+notebooks/data/*.tex
+notebooks/data/*.svg
+notebooks/data/*.tiff
 notebooks/data/multi_state/
 notebooks/data/multi_state_batch/
 notebooks/data/GOO220_mipar/
