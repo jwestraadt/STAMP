@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a6] - 2026-05-18
+
 ### Changed
 
 **Docs**
@@ -15,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and Contributing, plus a Citing STAMP section.
 - Installation instructions corrected to use the PyPI package name
   `nanoshot-stamp` (was incorrectly `stamp`); notebook extras documented.
+- Contributing guide and changelog now rendered directly in the docs rather
+  than linking out to GitHub.
 - Added `sphinx-design>=0.5` to docs dependencies for grid/card layout.
 
 **Notebooks**
@@ -26,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `run_mipar` pipeline gains `phase_aliases` and `missing_phase` parameters
   so notebooks can normalise phase name capitalisation variants and handle
   states where a phase is absent without raising an error
+- Notebook titles simplified (prefix `STAMP — ` removed from all five notebooks)
 
 ### Fixed
 
@@ -126,7 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added STAMP logo (stylised grain-boundary pattern) shown in the docs navbar and README
 - Switched documentation theme to PyData Sphinx Theme with a top navigation bar (Installation, Examples, Contributing, Changelog, API Reference) and GitHub link
 
-[Unreleased]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a5...HEAD
+[Unreleased]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a6...HEAD
+[0.1.0a6]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a5...v0.1.0a6
 [0.1.0a5]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a4...v0.1.0a5
 [0.1.0a4]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a3...v0.1.0a4
 [0.1.0a2]: https://github.com/jwestraadt/STAMP/compare/v0.1.0a1...v0.1.0a2
