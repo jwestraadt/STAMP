@@ -39,7 +39,7 @@ notebooks/04_mipar_feature_analysis
 notebooks/05_mipar_image_analysis
 ```
 
-### Quick Start
+### 01 — Quick Start
 
 **`01_quickstart.ipynb`** — end-to-end workflow for a single material state:
 load measurements from a text file, compute descriptive statistics with
@@ -48,21 +48,21 @@ stereological correction, generate publication-ready figures, and export results
 tables as CSV or LaTeX using `stamp.export` (§9 demonstrates default, Nature,
 and custom journal styles).
 
-### Stereological Correction Validation
+### 02 — 2D → 3D Stereological Corrections
 
 **`02_simulation_validation.ipynb`** — Monte Carlo Wicksell validation: simulate
 a synthetic lognormal 3-D grain population, generate 2-D cross-sections, apply
 Saltykov and two-step corrections, and quantify recovery accuracy across a range
 of sample sizes and bin counts.
 
-### Multi-State Pipeline
+### 03 — Multi-state Analysis
 
 **`03_multi_state_pipeline.ipynb`** — `stamp.pipeline.run_batch` applied to three
 heat-treatment states stored as single batch CSV files.  Demonstrates apparent (2-D)
 vs stereologically corrected (3-D) geometric means side-by-side with ground-truth
 reference lines.
 
-### MIPAR Feature Measurement Analysis
+### 04 — MIPAR Feature Measurements
 
 **`04_mipar_feature_analysis.ipynb`** — `stamp.pipeline.run_mipar` applied to
 MIPAR feature-measurement CSVs containing multiple precipitate phases (M23C6,
@@ -72,7 +72,7 @@ hatch-differentiated boxes, 89 mm / 180 mm column widths) and exports the
 summary statistics table as both CSV and a LaTeX booktabs table via
 `stamp.export.to_latex`.
 
-### MIPAR Image-Level Measurement Analysis
+### 05 — MIPAR Image Measurements
 
 **`05_mipar_image_analysis.ipynb`** — `stamp.io.load_mipar_image` applied to
 MIPAR batch image-measurement CSVs (one row per FOV, all phases as column

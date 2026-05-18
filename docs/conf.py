@@ -16,6 +16,7 @@ extensions = [
     "autoapi.extension",
     "myst_parser",
     "nbsphinx",
+    "sphinx_design",
 ]
 
 autoapi_dirs = ["../src"]
