@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+**Notebooks**
+- `04_mipar_feature_analysis` and `05_mipar_image_analysis` now cover all 7 material
+  states (0 kh, 12 kh, 51 kh, 81 kh, 139 kh gauge, 139 kh thread, 139 kh fracture)
+  instead of the previous three; all outputs re-executed.
+
 ## [0.1.0a6] - 2026-05-18
 
 ### Changed
