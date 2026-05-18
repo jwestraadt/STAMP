@@ -54,11 +54,13 @@ docs/notebooks/
 notebooks/*.csv
 /*.png
 
-# Generated notebook data (keep apparent_diameters.txt)
+# Generated notebook data — only apparent_diameters.txt is tracked
+notebooks/data/*.csv
+notebooks/data/*.xlsx
 notebooks/data/multi_state/
 notebooks/data/multi_state_batch/
-notebooks/data/*_FeatureMeas.csv
 notebooks/data/GOO220_mipar/
+notebooks/data/GOO220_image/
 
 # Spurious nested directory created by Sphinx docs build
 notebooks/notebooks/

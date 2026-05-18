@@ -495,6 +495,8 @@ def run_mipar(
     unit: str,
     *,
     phase: str | None = None,
+    phase_aliases: dict[str, str] | None = None,
+    missing_phase: str = "raise",
     image_col: str = "Image",
     phase_col: str = "Layer",
     label: str | None = None,
@@ -524,6 +526,16 @@ def run_mipar(
         If given, only rows where *phase_col* equals *phase* are used.
         When omitted all phases are combined; a :func:`warnings.warn` is
         issued if more than one phase is present.
+    phase_aliases : dict of {str: str}, optional
+        Rename map applied to *phase_col* values before filtering, e.g.
+        ``{"MX Zphase": "MX ZPhase"}``.  Use this to normalise
+        capitalisation variants across files from different MIPAR versions.
+    missing_phase : {"raise", "warn", "skip"}, optional
+        Behaviour when *phase* is not present in a state's file.
+        ``"raise"`` (default) raises :exc:`ValueError`.  ``"warn"`` skips
+        the state and emits a :func:`warnings.warn`.  ``"skip"`` skips
+        silently.  Useful when a phase has not yet formed in early-exposure
+        states.
     image_col : str, optional
         Column identifying the field-of-view image.  Default ``"Image"``.
     phase_col : str, optional
@@ -597,6 +609,9 @@ def run_mipar(
         csv_path = Path(csv_path)
         df = load_mipar_features(csv_path, image_col=image_col, phase_col=phase_col)
 
+        if phase_aliases:
+            df[phase_col] = df[phase_col].replace(phase_aliases)
+
         if measurement not in df.columns:
             raise ValueError(
                 f"Measurement column {measurement!r} not found. "
@@ -606,10 +621,19 @@ def run_mipar(
         if phase is not None:
             available = df[phase_col].unique().tolist()
             if phase not in available:
-                raise ValueError(
-                    f"Phase {phase!r} not found in state {state_name!r}. "
-                    f"Available phases: {available}"
-                )
+                if missing_phase == "raise":
+                    raise ValueError(
+                        f"Phase {phase!r} not found in state {state_name!r}. "
+                        f"Available phases: {available}"
+                    )
+                if missing_phase == "warn":
+                    warnings.warn(
+                        f"Phase {phase!r} not found in state {state_name!r} "
+                        f"(available: {available}) — skipping.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                continue
             df = df[df[phase_col] == phase]
         else:
             unique_phases = df[phase_col].unique().tolist()
