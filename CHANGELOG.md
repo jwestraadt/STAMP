@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+**Docs**
+- Landing page (`index.rst`) redesigned with a description, tab-set install
+  snippet, sphinx-design card tiles for Examples, API Reference, Installation,
+  and Contributing, plus a Citing STAMP section.
+- Installation instructions corrected to use the PyPI package name
+  `nanoshot-stamp` (was incorrectly `stamp`); notebook extras documented.
+- Added `sphinx-design>=0.5` to docs dependencies for grid/card layout.
+
 **Notebooks**
 - `04_mipar_feature_analysis` and `05_mipar_image_analysis` — updated to
   reflect a 4-phase MIPAR segmentation where `MX ZPhase` is split into two
