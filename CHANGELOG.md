@@ -7,12 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+**Pipeline**
+- `pipeline.run_mipar()` gains a `phase_aliases` parameter to normalise phase name
+  capitalisation variants across files.
+- `pipeline.run_mipar()` gains a `missing_phase` parameter (`"raise"` / `"warn"` / `"skip"`)
+  to handle states where a phase is absent entirely.
+
+**Notebooks**
+- `04_mipar_feature_analysis` — new section (§7) reports nearest-neighbour spacing
+  and particle number density per phase from MIPAR's `Average Neighbor Distance` column
+  and per-FOV feature counts: direct geometric measurements that give physically intuitive
+  gap sizes for dilute phases (MX, ZPhase) where the intercept-based mean free path in
+  notebook 05 is dominated by empty stretches of matrix.
+- `04_mipar_feature_analysis` — new section (§8) reports total phase fraction per FOV
+  per phase, computed by summing individual feature area fractions; cross-checked against
+  the batch measurements in notebook 05.
+
 ### Changed
 
 **Notebooks**
 - `04_mipar_feature_analysis` and `05_mipar_image_analysis` now cover all 7 material
   states (0 kh, 12 kh, 51 kh, 81 kh, 139 kh gauge, 139 kh thread, 139 kh fracture)
   instead of the previous three; all outputs re-executed.
+- `05_mipar_image_analysis` masks zero or negative mean-intercept values before
+  computing stereological quantities to prevent division errors.
+
+### Fixed
+
+- Untracked CSV files under `notebooks/data/` removed from the repository; `.gitignore`
+  tightened to exclude all CSV, Excel, PNG, PDF, SVG, TIFF, and TeX outputs in that
+  directory.
 
 ## [0.1.0a6] - 2026-05-18
 
